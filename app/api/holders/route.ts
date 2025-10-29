@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getAssetInfo, getAssetAddresses, extractDecimals, scale } from "@/lib/koios";
 
-export const runtime = "nodejs";
+export const runtime = "edge";         // <<< Edge statt Node
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -39,7 +39,6 @@ export async function GET() {
       .slice(0, 10)
       .map((x) => ({ ...x, scaled: scale(x.raw, decimals) }));
 
-    // CDN-cachebar für 30s, trotzdem im Server SSR kein Stale
     return NextResponse.json(
       { ok: true, decimals, totalHolders, top, circulating, ts: Date.now() },
       { headers: { "Cache-Control": "s-maxage=30, stale-while-revalidate=60" } }
