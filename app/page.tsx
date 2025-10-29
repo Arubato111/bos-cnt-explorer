@@ -1,84 +1,59 @@
 // app/page.tsx
-import Link from "next/link";
+import Hero from "@/components/Hero";
 import MarketStats from "@/components/MarketStats";
-import { getLiveMarketData } from "@/lib/markets";
+import TradingWidget from "@/components/TradingWidget";
+import CopyField from "@/components/CopyField";
+import DataSources from "@/components/DataSources";
 import HoldersLive from "@/components/HoldersLive";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-export default async function Home() {
-  const market = await getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] }));
+const CNT_ASSET_ID = "1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e";
 
+export default async function Home() {
   return (
     <main className="min-h-screen">
-      <section className="pt-2 pb-1">
-        <div className="mb-1 text-xs text-white/60">
-          <strong>Inoffizieller Explorer von Arubato</strong> – nicht mit BitcoinOS verbunden.
-        </div>
-      </section>
+      <Hero />
 
-      {/* NEU: Vollständige Market-KPIs (CoinGecko) */}
-      <div className="mt-4">
+      {/* Market KPIs (CoinGecko) */}
+      <div className="mt-8">
         <MarketStats />
       </div>
 
-      {/* Gate/CEX & DEX Listings (aus deiner bestehenden lib/markets.ts) */}
-      <section className="grid gap-6 md:grid-cols-2 mt-8">
-        <Listings title="CEX Listings" rows={market.cex} />
-        <Listings title="DEX Listings (official contracts)" rows={market.dex} />
+      {/* Gate.io Trading (CNT) */}
+      <div className="mt-8">
+        <TradingWidget />
+      </div>
+
+      {/* CNT Asset - copyable */}
+      <section className="mt-8 grid md:grid-cols-2 gap-6">
+        <CopyField label="BOS CNT Asset (Cardano)" value={CNT_ASSET_ID} />
+        <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div className="text-xs text-white/60">Quick Links</div>
+          <ul className="mt-2 text-sm space-y-2">
+            <li><a className="text-[#66a3ff] hover:underline" target="_blank" href={`https://cardanoscan.io/token/${CNT_ASSET_ID}`}>BOS CNT on Cardanoscan</a></li>
+            <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="https://www.gate.io/trade/BOS_USDT">Gate.io BOS/USDT (CNT)</a></li>
+            <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="/token">Token dashboard</a></li>
+          </ul>
+          <p className="mt-3 text-xs text-white/60">Purpose: track the BOS ecosystem on Cardano (CNT) – prices, trading, and, as soon as available, live on-chain metrics.</p>
+        </div>
       </section>
 
-      {/* Live Holders (Koios) */}
+      {/* Live holders (Koios) */}
       <div className="mt-8">
         <HoldersLive />
       </div>
 
+      {/* Data & legal notice */}
       <div className="mt-8">
-        <Link href="/token" className="px-4 py-2 rounded-xl bg-[#1a5cff] hover:bg-[#3270ff]">
-          Zum Token-Dashboard
-        </Link>
+        <DataSources />
       </div>
-    </main>
-  );
-}
 
-function Listings({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: { exchange: string; pair: string; url?: string | null; priceUsd?: number | null }[];
-}) {
-  return (
-    <div className="rounded-2xl bg-white/5 border border-white/10">
-      <header className="px-4 py-3 border-b border-white/10">
-        <h2 className="text-lg font-medium">{title}</h2>
-      </header>
-      <div className="p-4">
-        {(!rows || rows.length === 0) ? (
-          <p className="text-white/60">Keine Einträge gefunden.</p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {rows.slice(0, 12).map((m, i) => (
-              <li key={i} className="grid grid-cols-12 items-center gap-3">
-                <span className="col-span-6 truncate">{m.exchange} – {m.pair}</span>
-                <span className="col-span-3 text-white/80 text-right">
-                  {m.priceUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(m.priceUsd)}` : "–"}
-                </span>
-                <span className="col-span-3 text-right">
-                  {m.url ? (
-                    <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={m.url}>
-                      Trade
-                    </a>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      <footer className="mt-10 text-xs text-white/60">
+        Unofficial – by Arubato. Not affiliated with BitcoinOS. © 2025
+      </footer>
+    </main>
   );
 }
