@@ -1,38 +1,24 @@
 // app/layout.tsx
 import "./globals.css";
-import Link from "next/link";
-import { ReactNode } from "react";
+import type { Metadata } from "next";
 import SearchBar from "@/components/SearchBar";
 
-export const metadata = {
-  title: "BOS CNT Explorer",
-  description: "Explorer & Analytics (inoffiziell, von Arubato).",
+export const metadata: Metadata = {
+  title: "BOS CNT Explorer (Unofficial by Arubato)",
+  description: "Track BOS (BitcoinOS) on Cardano: prices, trading and CNT on-chain metrics.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
-      <body className="bg-[#0b0d12] text-white">
-        <header className="sticky top-0 z-50 backdrop-blur bg-black/30 border-b border-white/10">
-          <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-4">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
-              <span className="text-white">BOS</span>{" "}
-              <span className="text-[#66a3ff]">CNT</span>{" "}
-              <span className="text-white/80">Explorer</span>
-            </Link>
-            <nav className="hidden md:flex gap-6 text-sm text-white/70">
-              <Link href="/" className="hover:text-white">Home</Link>
-              <Link href="/token" className="hover:text-white">Token</Link>
-            </nav>
-            <div className="ml-auto w-80 max-w-[50vw]">
-              <SearchBar />
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-        <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-white/40">
-          Inoffiziell – von Arubato. Nicht mit BitcoinOS verbunden. © {new Date().getFullYear()}
-        </footer>
+    <html lang="en">
+      <body className="bg-[#0b0f1b] text-white">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <header className="mb-6 flex items-center gap-4">
+            <div className="text-xl font-semibold">BOS CNT Explorer</div>
+            <div className="flex-1"><SearchBar /></div>
+          </header>
+          {children}
+        </div>
       </body>
     </html>
   );
