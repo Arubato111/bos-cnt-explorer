@@ -12,6 +12,8 @@ import { getLiveMarketData } from "@/lib/markets";
 
 export const dynamic = "force-dynamic";
 
+type HolderRow = { address: string; raw: number; scaled: number };
+
 export default async function Home() {
   // Parallel laden
   const [assetInfo, assetTxs, holdersResp, market] = await Promise.all([
@@ -26,15 +28,14 @@ export default async function Home() {
   const totalSupplyScaled = scale(asset?.total_supply ?? 0, decimals);
   const totalTxs = (assetTxs?.[0]?.tx_hashes ?? []).length;
 
-  // Top 10 Holder skaliert
-  type HolderRow = { address: string; raw: number; scaled: number };
+  // Top 10 Holder skaliert (typisiert, damit kein implicit any auftritt)
   const holderRows: HolderRow[] = (holdersResp?.[0]?.addresses ?? holdersResp ?? [])
     .map((h: any) => ({
-      address: h.address,
+      address: h.address as string,
       raw: Number(h.quantity),
       scaled: scale(h.quantity, decimals),
     }))
-    .sort((a, b) => b.raw - a.raw)
+    .sort((a: HolderRow, b: HolderRow) => b.raw - a.raw)
     .slice(0, 10);
 
   return (
@@ -44,9 +45,8 @@ export default async function Home() {
         <div className="mx-auto max-w-6xl">
           <h1 className="text-3xl font-semibold tracking-tight">BOS CNT Explorer</h1>
           <p className="mt-2 text-white/60">
-            Inoffizieller Explorer von <strong>Arubato</strong> –
-            nicht verbunden mit BitcoinOS. Live-Daten: Preis, Market Cap, Listings,
-            Holder, Transaktionen.
+            <strong>Inoffizieller Explorer von Arubato</strong> – nicht mit BitcoinOS verbunden.
+            Live-Daten: Preis, Market Cap, Listings, Holder, Transaktionen.
           </p>
           <div className="mt-4 flex gap-3 text-sm">
             <Link href="/token" className="px-4 py-2 rounded-xl bg-[#1a5cff] hover:bg-[#3270ff]">
@@ -56,6 +56,7 @@ export default async function Home() {
               className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20"
               target="_blank"
               href="https://cardanoscan.io/"
+              rel="noreferrer"
             >
               Cardanoscan öffnen
             </a>
@@ -66,8 +67,14 @@ export default async function Home() {
       {/* KPI Cards */}
       <section className="px-4 md:px-6 py-8">
         <div className="mx-auto max-w-6xl grid gap-4 md:grid-cols-4">
-          <Card title="Live-Preis (USD)" value={market.priceUsd != null ? `$${fmt(market.priceUsd, 6)}` : "–"} />
-          <Card title="Market Cap (USD)" value={market.marketCapUsd != null ? `$${fmt(market.marketCapUsd, 0)}` : "–"} />
+          <Card
+            title="Live-Preis (USD)"
+            value={market.priceUsd != null ? `$${fmt(market.priceUsd, 6)}` : "–"}
+          />
+          <Card
+            title="Market Cap (USD)"
+            value={market.marketCapUsd != null ? `$${fmt(market.marketCapUsd, 0)}` : "–"}
+          />
           <Card title="Total Supply" value={`${fmt(totalSupplyScaled, 0)} BOS`} />
           <Card title="Total Transactions" value={fmt(totalTxs)} />
         </div>
@@ -87,9 +94,18 @@ export default async function Home() {
                 <ul className="space-y-2 text-sm">
                   {market.cex.slice(0, 10).map((m, i) => (
                     <li key={i} className="flex items-center justify-between gap-3">
-                      <span className="truncate">{m.exchange} – {m.pair}</span>
+                      <span className="truncate">
+                        {m.exchange} – {m.pair}
+                      </span>
                       {m.url ? (
-                        <a className="text-[#66a3ff] hover:underline" target="_blank" href={m.url}>Trade</a>
+                        <a
+                          className="text-[#66a3ff] hover:underline"
+                          target="_blank"
+                          href={m.url}
+                          rel="noreferrer"
+                        >
+                          Trade
+                        </a>
                       ) : null}
                     </li>
                   ))}
@@ -109,9 +125,18 @@ export default async function Home() {
                 <ul className="space-y-2 text-sm">
                   {market.dex.slice(0, 10).map((m, i) => (
                     <li key={i} className="flex items-center justify-between gap-3">
-                      <span className="truncate">{m.exchange} – {m.pair}</span>
+                      <span className="truncate">
+                        {m.exchange} – {m.pair}
+                      </span>
                       {m.url ? (
-                        <a className="text-[#66a3ff] hover:underline" target="_blank" href={m.url}>Trade</a>
+                        <a
+                          className="text-[#66a3ff] hover:underline"
+                          target="_blank"
+                          href={m.url}
+                          rel="noreferrer"
+                        >
+                          Trade
+                        </a>
                       ) : null}
                     </li>
                   ))}
@@ -127,7 +152,9 @@ export default async function Home() {
         <div className="mx-auto max-w-6xl rounded-2xl bg-white/5 border border-white/10">
           <header className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <h2 className="text-lg font-medium">Top 10 Holders</h2>
-            <span className="text-xs text-white/60">Mengen skaliert (decimals: {decimals})</span>
+            <span className="text-xs text-white/60">
+              Mengen skaliert (decimals: {decimals})
+            </span>
           </header>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -144,15 +171,23 @@ export default async function Home() {
                     <td className="px-4 py-2 truncate">{h.address}</td>
                     <td className="px-4 py-2">{fmt(h.scaled, 2)}</td>
                     <td className="px-4 py-2">
-                      <a className="text-[#66a3ff] hover:underline" target="_blank"
-                        href={`https://cardanoscan.io/address/${h.address}`}>
+                      <a
+                        className="text-[#66a3ff] hover:underline"
+                        target="_blank"
+                        href={`https://cardanoscan.io/address/${h.address}`}
+                        rel="noreferrer"
+                      >
                         Cardanoscan
                       </a>
                     </td>
                   </tr>
                 ))}
                 {holderRows.length === 0 && (
-                  <tr><td className="px-4 py-6 text-white/60" colSpan={3}>Keine Holder gefunden.</td></tr>
+                  <tr>
+                    <td className="px-4 py-6 text-white/60" colSpan={3}>
+                      Keine Holder gefunden.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -163,7 +198,7 @@ export default async function Home() {
   );
 }
 
-function Card({ title, value }:{title:string; value:any}) {
+function Card({ title, value }: { title: string; value: any }) {
   return (
     <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
       <div className="text-xs text-white/60">{title}</div>
