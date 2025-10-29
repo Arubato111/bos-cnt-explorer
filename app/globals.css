@@ -2,7 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { color-scheme: dark; }
+
 body {
-  background-color: #f9fafb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  background: #0b0d12;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+table { border-collapse: collapse; }
