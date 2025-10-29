@@ -1,6 +1,5 @@
 // app/page.tsx
 import Link from "next/link";
-import { getAssetInfo, getAssetTxs, extractDecimals, scale, fmt } from "@/lib/koios";
 import { getLiveMarketData } from "@/lib/markets";
 import HoldersLive from "@/components/HoldersLive";
 
@@ -8,35 +7,27 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
+async function getSummary() {
+  const r = await fetch("/api/token/summary", { cache: "no-store" }).catch(() => null);
+  const j = await r?.json().catch(() => null);
+  return j?.ok ? j : { ok: false };
+}
 async function getCirculating() {
-  try {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-    const r = await fetch(`${base}/api/holders`, { cache: "no-store" }).catch(() =>
-      fetch("/api/holders", { cache: "no-store" })
-    );
-    const j = await r.json().catch(() => null);
-    return j?.ok
-      ? { total: j.totalHolders as number | null, circulating: j.circulating as number | null }
-      : { total: null, circulating: null };
-  } catch {
-    return { total: null, circulating: null };
-  }
+  const r = await fetch("/api/holders", { cache: "no-store" }).catch(() => null);
+  const j = await r?.json().catch(() => null);
+  return j?.ok ? j : { ok: false };
 }
 
 export default async function Home() {
-  const [assetInfo, assetTxs, market, circ] = await Promise.all([
-    getAssetInfo().catch(() => []),
-    getAssetTxs().catch(() => []),
-    getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] })),
+  const [sum, circ, market] = await Promise.all([
+    getSummary(),
     getCirculating(),
+    getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] })),
   ]);
 
-  const asset = (assetInfo as any[])?.[0] ?? {};
-  const decimals = extractDecimals(asset);
-  const totalSupplyScaled = scale(asset?.total_supply ?? 0, decimals);
-  const totalBOSTxs = ((assetTxs as any[])?.[0]?.tx_hashes ?? []).length;
-
-  const upstreamDown = !asset?.policy_id;
+  const totalSupply = sum?.totalSupply ?? null;
+  const txCount = sum?.txCount ?? null;
+  const circulating = circ?.circulating ?? null;
 
   return (
     <main className="min-h-screen">
@@ -44,19 +35,17 @@ export default async function Home() {
         <div className="mb-1 text-xs text-white/60">
           <strong>Inoffizieller Explorer von Arubato</strong> – nicht mit BitcoinOS verbunden.
         </div>
-        {upstreamDown && (
-          <div className="mb-3 text-xs text-amber-300">
-            Hinweis: Koios liefert aktuell leer – Anzeigen können 0/– zeigen. Wir versuchen automatisch andere Mirrors.
-          </div>
+        {(!sum?.ok || !circ?.ok) && (
+          <div className="mb-3 text-xs text-amber-300">Hinweis: Upstream schwankt – wir routen über Edge & Mirrors.</div>
         )}
       </section>
 
       <section className="grid gap-4 md:grid-cols-5">
-        <Card title="Live-Preis (USD)" value={market.priceUsd != null ? `$${fmt(market.priceUsd, 6)}` : "–"} />
-        <Card title="Market Cap (USD)" value={market.marketCapUsd != null ? `$${fmt(market.marketCapUsd, 0)}` : "–"} />
-        <Card title="Total Supply" value={`${fmt(totalSupplyScaled, 0)} BOS`} />
-        <Card title="Circulating (live)" value={circ.circulating != null ? `${fmt(circ.circulating, 0)} BOS` : "–"} />
-        <Card title="Tx Count (BOS only)" value={fmt(totalBOSTxs)} />
+        <Card title="Live-Preis (USD)" value={market.priceUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(market.priceUsd)}` : "–"} />
+        <Card title="Market Cap (USD)" value={market.marketCapUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(market.marketCapUsd)}` : "–"} />
+        <Card title="Total Supply" value={totalSupply != null ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(totalSupply)} BOS` : "–"} />
+        <Card title="Circulating (live)" value={circulating != null ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(circulating)} BOS` : "–"} />
+        <Card title="Tx Count (BOS only)" value={txCount != null ? new Intl.NumberFormat("en-US").format(txCount) : "–"} />
       </section>
 
       <section className="grid gap-6 md:grid-cols-2 mt-8">
@@ -64,14 +53,10 @@ export default async function Home() {
         <Listings title="DEX Listings (official contracts)" rows={market.dex} />
       </section>
 
-      <div className="mt-8">
-        <HoldersLive />
-      </div>
+      <div className="mt-8"><HoldersLive /></div>
 
       <div className="mt-8">
-        <Link href="/token" className="px-4 py-2 rounded-xl bg-[#1a5cff] hover:bg-[#3270ff]">
-          Zum Token-Dashboard
-        </Link>
+        <Link href="/token" className="px-4 py-2 rounded-xl bg-[#1a5cff] hover:bg-[#3270ff]">Zum Token-Dashboard</Link>
       </div>
     </main>
   );
@@ -86,18 +71,10 @@ function Card({ title, value }: { title: string; value: any }) {
   );
 }
 
-function Listings({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: { exchange: string; pair: string; url?: string | null; priceUsd?: number | null }[];
-}) {
+function Listings({ title, rows }: { title: string; rows: { exchange: string; pair: string; url?: string | null; priceUsd?: number | null }[]; }) {
   return (
     <div className="rounded-2xl bg-white/5 border border-white/10">
-      <header className="px-4 py-3 border-b border-white/10">
-        <h2 className="text-lg font-medium">{title}</h2>
-      </header>
+      <header className="px-4 py-3 border-b border-white/10"><h2 className="text-lg font-medium">{title}</h2></header>
       <div className="p-4">
         {(!rows || rows.length === 0) ? (
           <p className="text-white/60">Keine Einträge gefunden.</p>
@@ -106,16 +83,8 @@ function Listings({
             {rows.slice(0, 12).map((m, i) => (
               <li key={i} className="grid grid-cols-12 items-center gap-3">
                 <span className="col-span-6 truncate">{m.exchange} – {m.pair}</span>
-                <span className="col-span-3 text-white/80 text-right">
-                  {m.priceUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(m.priceUsd)}` : "–"}
-                </span>
-                <span className="col-span-3 text-right">
-                  {m.url ? (
-                    <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={m.url}>
-                      Trade
-                    </a>
-                  ) : null}
-                </span>
+                <span className="col-span-3 text-white/80 text-right">{m.priceUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(m.priceUsd)}` : "–"}</span>
+                <span className="col-span-3 text-right">{m.url ? (<a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={m.url}>Trade</a>) : null}</span>
               </li>
             ))}
           </ul>
