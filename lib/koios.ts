@@ -5,7 +5,7 @@ const ASSET_ID =
 
 const BF_KEY = process.env.BLOCKFROST_PROJECT_ID; // optional
 
-type FetchOpts = RequestInit & { retry?: number; };
+type FetchOpts = RequestInit & { retry?: number };
 
 async function http<T>(url: string, init: FetchOpts = {}): Promise<T> {
   const { retry = 2, ...opts } = init;
@@ -19,7 +19,6 @@ async function http<T>(url: string, init: FetchOpts = {}): Promise<T> {
       ...opts,
     });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    // manche Edge-Proxies liefern HTML → abfangen
     const text = await r.text();
     try { return JSON.parse(text) as T; } catch { throw new Error("invalid_json"); }
   } catch (e) {
@@ -42,11 +41,9 @@ async function getKoios<T>(path: string): Promise<T> {
 
 /** ---------- Primary (Koios) ---------- */
 export async function getAssetInfo() {
-  // asset_info erwartet _asset_list mit policy+asset hex
   return postKoios<any[]>("/asset_info", { _asset_list: [ASSET_ID] });
 }
 export async function getAssetTxs(limit = 5000) {
-  // liefert tx_hashes; Koios sortiert neueste zuerst
   return postKoios<any[]>("/asset_txs", { _asset_list: [ASSET_ID], _limit: limit });
 }
 export async function getAssetAddresses(limit = 20000) {
@@ -55,6 +52,10 @@ export async function getAssetAddresses(limit = 20000) {
 export async function getTxInfosBulk(txHashes: string[]) {
   if (!txHashes?.length) return [];
   return postKoios<any[]>("/tx_info", { _tx_hashes: txHashes });
+}
+export async function getTxInfo(txHash: string) {
+  const r = await getTxInfosBulk([txHash]);
+  return r?.[0] ?? null;
 }
 export async function getTxUtxos(txHash: string) {
   const r = await postKoios<any[]>("/tx_utxos", { _tx_hashes: [txHash] });
@@ -85,7 +86,6 @@ async function bf<T>(path: string) {
 export async function getAssetInfoWithFallback() {
   try { return await getAssetInfo(); }
   catch {
-    // BF: /assets/{asset}
     const j = await bf<any>(`/assets/${ASSET_ID}`).catch(() => null);
     if (!j) return [];
     return [{
@@ -101,7 +101,6 @@ export async function getAssetInfoWithFallback() {
 export async function getAssetAddressesWithFallback(limit = 20000) {
   try { return await getAssetAddresses(limit); }
   catch {
-    // BF: /assets/{asset}/addresses
     const j = await bf<any[]>(`/assets/${ASSET_ID}/addresses?count=${Math.min(limit, 100)}`).catch(() => null);
     if (!Array.isArray(j)) return [];
     return [{
@@ -114,7 +113,6 @@ export async function getAssetAddressesWithFallback(limit = 20000) {
 export async function getAssetTxsWithFallback(limit = 5000) {
   try { return await getAssetTxs(limit); }
   catch {
-    // BF: /assets/{asset}/transactions
     const j = await bf<any[]>(`/assets/${ASSET_ID}/transactions?count=${Math.min(limit, 100)}`).catch(() => null);
     if (!Array.isArray(j)) return [];
     return [{ tx_hashes: j.map((x: any) => x.tx_hash) }];
