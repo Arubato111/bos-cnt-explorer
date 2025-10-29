@@ -1,6 +1,12 @@
 // app/page.tsx
 import Link from "next/link";
-import { getAssetInfo, getAssetTxs, extractDecimals, scale, fmt } from "@/lib/koios";
+import {
+  getAssetInfoWithFallback,
+  getAssetTxsWithFallback,
+  extractDecimals,
+  scale,
+  fmt,
+} from "@/lib/koios";
 import { getLiveMarketData } from "@/lib/markets";
 import HoldersLive from "@/components/HoldersLive";
 
@@ -8,29 +14,29 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-// helper fürs Server-Fetch auf eigene API
 async function getCirculating() {
   try {
-    const r = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/api/holders`, { cache: "no-store" })
-      .catch(() => fetch("/api/holders", { cache: "no-store" })); // fallback relativ
-    const j = await r.json();
+    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+    const r = await fetch(`${base}/api/holders`, { cache: "no-store" }).catch(() => fetch("/api/holders", { cache: "no-store" }));
+    const j = await r.json().catch(() => null);
     return j?.ok ? { total: j.totalHolders, circulating: j.circulating } : { total: null, circulating: null };
   } catch { return { total: null, circulating: null }; }
 }
 
 export default async function Home() {
-  let [assetInfo, assetTxs, market] = await Promise.all([
-    getAssetInfo().catch(() => []),
-    getAssetTxs().catch(() => []),
+  const [assetInfo, assetTxs, market, circ] = await Promise.all([
+    getAssetInfoWithFallback().catch(() => []),
+    getAssetTxsWithFallback().catch(() => []),
     getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] })),
+    getCirculating(),
   ]);
-
-  const circ = await getCirculating();
 
   const asset = (assetInfo as any[])?.[0] ?? {};
   const decimals = extractDecimals(asset);
   const totalSupplyScaled = scale(asset?.total_supply ?? 0, decimals);
-  const totalBOSTxs = ((assetTxs as any[])?.[0]?.tx_hashes ?? []).length; // nur BOS-Asset-Transaktionen
+  const totalBOSTxs = ((assetTxs as any[])?.[0]?.tx_hashes ?? []).length;
+
+  const upstreamDown = !asset?.policy_id; // zeigt Hinweis, wenn Koios/BF wirklich nichts lieferte
 
   return (
     <main className="min-h-screen">
@@ -38,6 +44,11 @@ export default async function Home() {
         <div className="mb-1 text-xs text-white/60">
           <strong>Inoffizieller Explorer von Arubato</strong> – nicht mit BitcoinOS verbunden.
         </div>
+        {upstreamDown && (
+          <div className="mb-3 text-xs text-amber-300">
+            Hinweis: Upstream-Daten gerade nicht vollständig erreichbar – Anzeigen können 0/– zeigen.
+          </div>
+        )}
       </section>
 
       {/* KPIs */}
@@ -49,10 +60,10 @@ export default async function Home() {
         <Card title="Tx Count (BOS only)" value={fmt(totalBOSTxs)} />
       </section>
 
-      {/* Listings mit Preis */}
+      {/* Listings mit Preis (nur offizielle DEX-Paare) */}
       <section className="grid gap-6 md:grid-cols-2 mt-8">
         <Listings title="CEX Listings" rows={market.cex} />
-        <Listings title="DEX Listings" rows={market.dex} />
+        <Listings title="DEX Listings (official contracts)" rows={market.dex} />
       </section>
 
       {/* Live Holders */}
@@ -96,16 +107,18 @@ function Listings({
         ) : (
           <ul className="space-y-2 text-sm">
             {rows.slice(0, 12).map((m, i) => (
-              <li key={i} className="flex items-center justify-between gap-3">
-                <span className="truncate">{m.exchange} – {m.pair}</span>
-                <span className="text-white/80">
+              <li key={i} className="grid grid-cols-12 items-center gap-3">
+                <span className="col-span-6 truncate">{m.exchange} – {m.pair}</span>
+                <span className="col-span-3 text-white/80 text-right">
                   {m.priceUsd != null ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(m.priceUsd)}` : "–"}
                 </span>
-                {m.url ? (
-                  <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={m.url}>
-                    Trade
-                  </a>
-                ) : null}
+                <span className="col-span-3 text-right">
+                  {m.url ? (
+                    <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={m.url}>
+                      Trade
+                    </a>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>
