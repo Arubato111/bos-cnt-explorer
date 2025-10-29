@@ -1,10 +1,10 @@
-import "../styles/globals.css";
-import type { ReactNode } from "react";
-import type { Metadata } from "next";
+// app/layout.tsx
+import "./globals.css";
+import { ReactNode } from "react";
 
-export const metadata: Metadata = {
-  title: "My App",
-  description: "Next.js + Tailwind starter"
+export const metadata = {
+  title: "BOS CNT Explorer",
+  description: "Official Token Dashboard for the BOS Token on Cardano",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
