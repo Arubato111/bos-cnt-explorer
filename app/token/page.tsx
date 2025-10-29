@@ -1,6 +1,6 @@
 // app/token/page.tsx
 import {
-  getAssetInfo, getAssetTxs, getAssetAddresses,
+  getAssetInfoWithFallback, getAssetTxsWithFallback, getAssetAddressesWithFallback,
   getTxInfosBulk, getTip, extractDecimals, scale, fmt
 } from "@/lib/koios";
 
@@ -15,9 +15,9 @@ export default async function TokenPage({ searchParams }: { searchParams?: Recor
   const pageSize = 25;
 
   const [info, txsResp, holdersResp, tip] = await Promise.all([
-    getAssetInfo().catch(() => []),
-    getAssetTxs().catch(() => []),
-    getAssetAddresses(10000).catch(() => []),
+    getAssetInfoWithFallback().catch(() => []),
+    getAssetTxsWithFallback().catch(() => []),
+    getAssetAddressesWithFallback(20000).catch(() => []),
     getTip().catch(() => []),
   ]);
 
@@ -33,7 +33,7 @@ export default async function TokenPage({ searchParams }: { searchParams?: Recor
   const txInfos = await getTxInfosBulk(slice).catch(() => []);
   const head = (tip as any[])?.[0]?.block_no ?? null;
 
-  // Holders (robust Feldnamen)
+  // Holders (robust)
   const rawHolders: any[] = ((holdersResp as any[])?.[0]?.addresses ?? (Array.isArray(holdersResp) ? holdersResp : []) ?? []);
   const holderRows: HolderRow[] = rawHolders
     .map((h: any) => ({
