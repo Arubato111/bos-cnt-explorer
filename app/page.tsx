@@ -1,12 +1,6 @@
 // app/page.tsx
 import Link from "next/link";
-import {
-  getAssetInfoWithFallback,
-  getAssetTxsWithFallback,
-  extractDecimals,
-  scale,
-  fmt,
-} from "@/lib/koios";
+import { getAssetInfo, getAssetTxs, extractDecimals, scale, fmt } from "@/lib/koios";
 import { getLiveMarketData } from "@/lib/markets";
 import HoldersLive from "@/components/HoldersLive";
 
@@ -17,16 +11,22 @@ export const runtime = "nodejs";
 async function getCirculating() {
   try {
     const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-    const r = await fetch(`${base}/api/holders`, { cache: "no-store" }).catch(() => fetch("/api/holders", { cache: "no-store" }));
+    const r = await fetch(`${base}/api/holders`, { cache: "no-store" }).catch(() =>
+      fetch("/api/holders", { cache: "no-store" })
+    );
     const j = await r.json().catch(() => null);
-    return j?.ok ? { total: j.totalHolders, circulating: j.circulating } : { total: null, circulating: null };
-  } catch { return { total: null, circulating: null }; }
+    return j?.ok
+      ? { total: j.totalHolders as number | null, circulating: j.circulating as number | null }
+      : { total: null, circulating: null };
+  } catch {
+    return { total: null, circulating: null };
+  }
 }
 
 export default async function Home() {
   const [assetInfo, assetTxs, market, circ] = await Promise.all([
-    getAssetInfoWithFallback().catch(() => []),
-    getAssetTxsWithFallback().catch(() => []),
+    getAssetInfo().catch(() => []),
+    getAssetTxs().catch(() => []),
     getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] })),
     getCirculating(),
   ]);
@@ -36,7 +36,7 @@ export default async function Home() {
   const totalSupplyScaled = scale(asset?.total_supply ?? 0, decimals);
   const totalBOSTxs = ((assetTxs as any[])?.[0]?.tx_hashes ?? []).length;
 
-  const upstreamDown = !asset?.policy_id; // zeigt Hinweis, wenn Koios/BF wirklich nichts lieferte
+  const upstreamDown = !asset?.policy_id;
 
   return (
     <main className="min-h-screen">
@@ -46,12 +46,11 @@ export default async function Home() {
         </div>
         {upstreamDown && (
           <div className="mb-3 text-xs text-amber-300">
-            Hinweis: Upstream-Daten gerade nicht vollständig erreichbar – Anzeigen können 0/– zeigen.
+            Hinweis: Koios liefert aktuell leer – Anzeigen können 0/– zeigen. Wir versuchen automatisch andere Mirrors.
           </div>
         )}
       </section>
 
-      {/* KPIs */}
       <section className="grid gap-4 md:grid-cols-5">
         <Card title="Live-Preis (USD)" value={market.priceUsd != null ? `$${fmt(market.priceUsd, 6)}` : "–"} />
         <Card title="Market Cap (USD)" value={market.marketCapUsd != null ? `$${fmt(market.marketCapUsd, 0)}` : "–"} />
@@ -60,13 +59,11 @@ export default async function Home() {
         <Card title="Tx Count (BOS only)" value={fmt(totalBOSTxs)} />
       </section>
 
-      {/* Listings mit Preis (nur offizielle DEX-Paare) */}
       <section className="grid gap-6 md:grid-cols-2 mt-8">
         <Listings title="CEX Listings" rows={market.cex} />
         <Listings title="DEX Listings (official contracts)" rows={market.dex} />
       </section>
 
-      {/* Live Holders */}
       <div className="mt-8">
         <HoldersLive />
       </div>
