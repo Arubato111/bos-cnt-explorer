@@ -11,31 +11,43 @@ import {
 import { getLiveMarketData } from "@/lib/markets";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;           // niemals cachen
+export const runtime = "nodejs";       // Edge vermeiden (manche APIs blocken Edge)
 
 type HolderRow = { address: string; raw: number; scaled: number };
 
 export default async function Home() {
-  // Parallel laden
-  const [assetInfo, assetTxs, holdersResp, market] = await Promise.all([
-    getAssetInfo(),
-    getAssetTxs(),
-    getAssetAddresses(500),
-    getLiveMarketData(),
-  ]);
+  // harte Fallbacks – falls APIs kurz down sind, rendern wir trotzdem
+  let assetInfo: any[] = [];
+  let assetTxs: any[] = [];
+  let holdersResp: any[] = [];
+  let market = { priceUsd: null, marketCapUsd: null, cex: [], dex: [] } as Awaited<ReturnType<typeof getLiveMarketData>>;
 
-  const asset = assetInfo?.[0];
+  try {
+    [assetInfo, assetTxs, holdersResp, market] = await Promise.all([
+      getAssetInfo().catch(() => []),
+      getAssetTxs().catch(() => []),
+      getAssetAddresses(500).catch(() => []),
+      getLiveMarketData().catch(() => ({ priceUsd: null, marketCapUsd: null, cex: [], dex: [] })),
+    ]);
+  } catch {
+    // Ignorieren – wir zeigen unten sinnvolle Defaults an
+  }
+
+  const asset = assetInfo?.[0] ?? {};
   const decimals = extractDecimals(asset);
   const totalSupplyScaled = scale(asset?.total_supply ?? 0, decimals);
   const totalTxs = (assetTxs?.[0]?.tx_hashes ?? []).length;
 
-  // Top 10 Holder skaliert (typisiert, damit kein implicit any auftritt)
-  const holderRows: HolderRow[] = (holdersResp?.[0]?.addresses ?? holdersResp ?? [])
-    .map((h: any) => ({
-      address: h.address as string,
-      raw: Number(h.quantity),
-      scaled: scale(h.quantity, decimals),
+  const rawHolders = (holdersResp?.[0]?.addresses ?? holdersResp ?? []) as any[];
+  const holderRows: HolderRow[] = rawHolders
+    .map((h) => ({
+      address: String(h?.address ?? ""),
+      raw: Number(h?.quantity ?? 0),
+      scaled: scale(h?.quantity ?? 0, decimals),
     }))
-    .sort((a: HolderRow, b: HolderRow) => b.raw - a.raw)
+    .filter((x) => x.address)
+    .sort((a: HolderRow, b: HolderRow) => (b.raw || 0) - (a.raw || 0))
     .slice(0, 10);
 
   return (
@@ -44,7 +56,7 @@ export default async function Home() {
       <section className="px-4 md:px-6 pt-8 pb-4 border-b border-white/10 bg-black/20">
         <div className="mx-auto max-w-6xl">
           <h1 className="text-3xl font-semibold tracking-tight">BOS CNT Explorer</h1>
-          <p className="mt-2 text-white/60">
+          <p className="mt-2 text-white/70">
             <strong>Inoffizieller Explorer von Arubato</strong> – nicht mit BitcoinOS verbunden.
             Live-Daten: Preis, Market Cap, Listings, Holder, Transaktionen.
           </p>
@@ -166,7 +178,7 @@ export default async function Home() {
                 </tr>
               </thead>
               <tbody>
-                {holderRows.map((h: HolderRow) => (
+                {holderRows.map((h) => (
                   <tr key={h.address} className="border-t border-white/10">
                     <td className="px-4 py-2 truncate">{h.address}</td>
                     <td className="px-4 py-2">{fmt(h.scaled, 2)}</td>
