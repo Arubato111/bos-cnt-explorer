@@ -1,7 +1,9 @@
 // app/page.tsx
 import Hero from "@/components/Hero";
+import DualPriceStrip from "@/components/DualPriceStrip";
 import MarketStats from "@/components/MarketStats";
 import TradingWidget from "@/components/TradingWidget";
+import TabbedChart from "@/components/TabbedChart";
 import CopyField from "@/components/CopyField";
 import DataSources from "@/components/DataSources";
 import HoldersLive from "@/components/HoldersLive";
@@ -17,17 +19,27 @@ export default async function Home() {
     <main className="min-h-screen">
       <Hero />
 
+      {/* NEW: BOS/USDT vs BOS/ADA strip */}
+      <div className="mt-6">
+        <DualPriceStrip />
+      </div>
+
       {/* Market KPIs (CoinGecko) */}
-      <div className="mt-8">
+      <div className="mt-6">
         <MarketStats />
       </div>
 
-      {/* Gate.io Trading (CNT) */}
-      <div className="mt-8">
+      {/* Chart with tabs & ranges */}
+      <div className="mt-6">
+        <TabbedChart />
+      </div>
+
+      {/* Gate.io trading box (USDT CNT market) */}
+      <div className="mt-6">
         <TradingWidget />
       </div>
 
-      {/* CNT Asset - copyable */}
+      {/* CNT Asset – copyable + quick links */}
       <section className="mt-8 grid md:grid-cols-2 gap-6">
         <CopyField label="BOS CNT Asset (Cardano)" value={CNT_ASSET_ID} />
         <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
@@ -37,7 +49,7 @@ export default async function Home() {
             <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="https://www.gate.io/trade/BOS_USDT">Gate.io BOS/USDT (CNT)</a></li>
             <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="/token">Token dashboard</a></li>
           </ul>
-          <p className="mt-3 text-xs text-white/60">Purpose: track the BOS ecosystem on Cardano (CNT) – prices, trading, and, as soon as available, live on-chain metrics.</p>
+          <p className="mt-3 text-xs text-white/60">Purpose: track the BOS ecosystem on Cardano (CNT) — prices, trading, and, as soon as available, live on-chain metrics.</p>
         </div>
       </section>
 
@@ -52,7 +64,7 @@ export default async function Home() {
       </div>
 
       <footer className="mt-10 text-xs text-white/60">
-        Unofficial – by Arubato. Not affiliated with BitcoinOS. © 2025
+        Unofficial — by Arubato. Not affiliated with BitcoinOS. © 2025
       </footer>
     </main>
   );
