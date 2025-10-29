@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 /**
- * BOS CNT Explorer — Single-file UI v3
+ * BOS CNT Explorer — Single-file UI
  * - Dual price strip: BOS/USDT (Gate) + BOS/ADA (derived via CoinGecko)
  * - Tabbed chart: BOS/USDT vs BOS/ADA with 1H/24H/7D
  * - English UI, clear sources, “Derived” badge for ADA
@@ -131,7 +131,12 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
       }
       try {
         // Series
-        const cfg = range === '1h' ? { days: '1', interval: 'minute' } : range === '24h' ? { days: '1', interval: 'hourly' } : { days: '7', interval: 'hourly' };
+        const cfg =
+          range === '1h'
+            ? { days: '1', interval: 'minute' }
+            : range === '24h'
+            ? { days: '1', interval: 'hourly' }
+            : { days: '7', interval: 'hourly' };
         const url = `https://api.coingecko.com/api/v3/coins/cardano/market_chart?vs_currency=usd&days=${cfg.days}&interval=${cfg.interval}`;
         const r2 = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
         const j2: CGSeries = await r2.json();
@@ -188,7 +193,7 @@ function HeroBlock() {
   return (
     <section className="grid gap-6 md:grid-cols-3 items-start">
       <div className="md:col-span-2">
-        <div className="text-xs text-white/60">UI v3 active</div>
+        <div className="text-xs text-white/60">UI live</div>
         <h1 className="text-3xl md:text-4xl font-semibold mt-1">BOS CNT Explorer</h1>
         <p className="mt-3 text-white/80">
           Unofficial explorer by <strong>Arubato</strong> for tracking the <strong>BOS</strong> (BitcoinOS) token activity on <strong>Cardano</strong>.
@@ -240,7 +245,7 @@ function DualPriceStrip() {
     let cancel = false;
     async function loadUsd() {
       try {
-        // BOS/USD: we use Gate BOS/USDT (peg) as USD proxy; if you prefer CoinGecko BOS, replace here.
+        // BOS/USD: use Gate BOS/USDT (peg) as USD proxy
         const bos = gate.price ?? null;
         if (!cancel) setBosUsd(bos ?? null);
       } catch {
