@@ -1,25 +1,16 @@
-export async function getAssetInfo() {
-  const res = await fetch("https://api.koios.rest/api/v1/asset_info", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      _asset_list: [
-        "1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e"
-      ]
-    })
-  });
-  return await res.json();
-}
+export type KoiosConfig = { baseUrl: string; apiKey?: string };
 
-export async function getAssetTxs() {
-  const res = await fetch("https://api.koios.rest/api/v1/asset_txs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      _asset_list: [
-        "1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e"
-      ]
-    })
-  });
-  return await res.json();
+export function createKoios(cfg: KoiosConfig) {
+  const base = cfg.baseUrl.replace(/\/$/, "");
+  const headers = cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {};
+  return {
+    async get<T>(path: string, init?: RequestInit): Promise<T> {
+      const res = await fetch(`${base}${path}`, {
+        ...init,
+        headers: { ...headers, ...(init?.headers || {}) }
+      });
+      if (!res.ok) throw new Error(`Koios HTTP ${res.status}`);
+      return res.json() as Promise<T>;
+    }
+  };
 }
