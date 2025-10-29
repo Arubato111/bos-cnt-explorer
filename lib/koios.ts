@@ -1,126 +1,141 @@
 // lib/koios.ts
-const KOIOS = "https://api.koios.rest/api/v1";
+const DEFAULT_URLS = (process.env.KOIOS_URLS || "https://api.koios.rest/api/v1")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
 const ASSET_ID =
   "1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e";
 
-const BF_KEY = process.env.BLOCKFROST_PROJECT_ID; // optional
+type FetchOpts = RequestInit & { retry?: number; timeoutMs?: number };
 
-type FetchOpts = RequestInit & { retry?: number };
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function http<T>(url: string, init: FetchOpts = {}): Promise<T> {
-  const { retry = 2, ...opts } = init;
+async function httpJson<T>(url: string, init: FetchOpts = {}): Promise<T> {
+  const { retry = 2, timeoutMs = 12000, ...opts } = init;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, {
       cache: "no-store",
       headers: {
         accept: "application/json",
+        "user-agent": "BOS-CNT-Explorer/koios",
         ...(opts.headers || {}),
       },
+      signal: ctrl.signal,
       ...opts,
     });
+    if (r.status === 429 && retry > 0) {
+      await sleep(500);
+      return httpJson<T>(url, { ...init, retry: retry - 1 });
+    }
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    const text = await r.text();
-    try { return JSON.parse(text) as T; } catch { throw new Error("invalid_json"); }
-  } catch (e) {
-    if (retry > 0) return http<T>(url, { ...init, retry: retry - 1 });
-    throw e;
-  }
+    const txt = await r.text();
+    try { return JSON.parse(txt) as T; } catch { throw new Error("invalid_json"); }
+  } finally { clearTimeout(t); }
 }
 
-async function postKoios<T>(path: string, body: unknown): Promise<T> {
-  return http<T>(`${KOIOS}${path}`, {
+async function postKoiosAny<T>(base: string, path: string, body: any): Promise<T> {
+  return httpJson<T>(`${base}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
-
-async function getKoios<T>(path: string): Promise<T> {
-  return http<T>(`${KOIOS}${path}`);
+async function getKoiosAny<T>(base: string, path: string): Promise<T> {
+  return httpJson<T>(`${base}${path}`);
 }
 
-/** ---------- Primary (Koios) ---------- */
+// Try all bases with backoff until one returns non-empty result (or last error)
+async function tryAllBases<T>(fn: (base: string) => Promise<T>, validate: (x: any) => boolean): Promise<T> {
+  let lastErr: any = null;
+  for (let i = 0; i < DEFAULT_URLS.length; i++) {
+    const base = DEFAULT_URLS[i];
+    try {
+      const res = await fn(base);
+      if (validate(res)) return res;
+      // kleine Pause, dann nächsten Mirror
+      await sleep(150);
+    } catch (e) {
+      lastErr = e;
+      await sleep(150);
+    }
+  }
+  // als Fallback: letzter Versuch auf erstem Base ohne Validate
+  if (DEFAULT_URLS[0]) {
+    try { return await fn(DEFAULT_URLS[0]); } catch (e) { lastErr = e; }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error("all_koios_failed");
+}
+
+/* ================== Public API (Koios only) ================== */
 export async function getAssetInfo() {
-  return postKoios<any[]>("/asset_info", { _asset_list: [ASSET_ID] });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/asset_info", { _asset_list: [ASSET_ID] }),
+    (x) => Array.isArray(x) && x.length > 0
+  );
 }
+
 export async function getAssetTxs(limit = 5000) {
-  return postKoios<any[]>("/asset_txs", { _asset_list: [ASSET_ID], _limit: limit });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/asset_txs", { _asset_list: [ASSET_ID], _limit: limit }),
+    (x) => Array.isArray(x) && x[0]?.tx_hashes?.length > 0
+  );
 }
+
 export async function getAssetAddresses(limit = 20000) {
-  return postKoios<any[]>("/asset_addresses", { _asset_list: [ASSET_ID], _limit: limit });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/asset_addresses", { _asset_list: [ASSET_ID], _limit: limit }),
+    (x) => Array.isArray(x) && (x[0]?.address_count > 0 || (x[0]?.addresses?.length ?? 0) > 0)
+  );
 }
+
 export async function getTxInfosBulk(txHashes: string[]) {
   if (!txHashes?.length) return [];
-  return postKoios<any[]>("/tx_info", { _tx_hashes: txHashes });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/tx_info", { _tx_hashes: txHashes }),
+    (x) => Array.isArray(x)
+  );
 }
+
 export async function getTxInfo(txHash: string) {
-  const r = await getTxInfosBulk([txHash]);
+  const r = await getTxInfosBulk([txHash]).catch(() => []);
   return r?.[0] ?? null;
 }
+
 export async function getTxUtxos(txHash: string) {
-  const r = await postKoios<any[]>("/tx_utxos", { _tx_hashes: [txHash] });
-  return r?.[0];
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/tx_utxos", { _tx_hashes: [txHash] }),
+    (x) => Array.isArray(x)
+  ).then(x => x?.[0]);
 }
+
 export async function getAddressInfo(addr: string) {
-  return postKoios<any[]>("/address_info", { _addresses: [addr] });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/address_info", { _addresses: [addr] }),
+    (x) => Array.isArray(x)
+  );
 }
+
 export async function getAddressTxs(addr: string, limit = 500) {
-  return postKoios<any[]>("/address_txs", {
-    _addresses: [addr],
-    _after_block_height: null,
-    _limit: limit,
-  });
+  return tryAllBases<any[]>(
+    (base) => postKoiosAny(base, "/address_txs", { _addresses: [addr], _limit: limit }),
+    (x) => Array.isArray(x)
+  );
 }
+
 export async function getTip() {
-  return getKoios<Array<{ block_no: number }>>("/tip");
+  return tryAllBases<Array<{ block_no: number }>>(
+    (base) => getKoiosAny(base, "/tip"),
+    (x) => Array.isArray(x) && x.length > 0
+  );
 }
 
-/** ---------- Optional Blockfrost Fallback (wenn KEY gesetzt) ---------- */
-async function bf<T>(path: string) {
-  if (!BF_KEY) throw new Error("bf_disabled");
-  return http<T>(`https://cardano-mainnet.blockfrost.io/api/v0${path}`, {
-    headers: { project_id: BF_KEY },
-  });
-}
-
-export async function getAssetInfoWithFallback() {
-  try { return await getAssetInfo(); }
-  catch {
-    const j = await bf<any>(`/assets/${ASSET_ID}`).catch(() => null);
-    if (!j) return [];
-    return [{
-      policy_id: j.policy_id,
-      asset_name: j.asset_name,
-      total_supply: Number(j.quantity ?? 0),
-      token_registry_metadata: j.onchain_metadata || {},
-      decimals: (j.onchain_metadata && (j.onchain_metadata.decimals ?? j.onchain_metadata?.meta?.decimals)) ?? 0,
-    }];
-  }
-}
-
-export async function getAssetAddressesWithFallback(limit = 20000) {
-  try { return await getAssetAddresses(limit); }
-  catch {
-    const j = await bf<any[]>(`/assets/${ASSET_ID}/addresses?count=${Math.min(limit, 100)}`).catch(() => null);
-    if (!Array.isArray(j)) return [];
-    return [{
-      address_count: j.length,
-      addresses: j.map((x: any) => ({ address: x.address, quantity: x.quantity })),
-    }];
-  }
-}
-
-export async function getAssetTxsWithFallback(limit = 5000) {
-  try { return await getAssetTxs(limit); }
-  catch {
-    const j = await bf<any[]>(`/assets/${ASSET_ID}/transactions?count=${Math.min(limit, 100)}`).catch(() => null);
-    if (!Array.isArray(j)) return [];
-    return [{ tx_hashes: j.map((x: any) => x.tx_hash) }];
-  }
-}
-
-/** ---------- Helpers ---------- */
+/* ================== Helpers ================== */
 export function extractDecimals(assetInfo: any): number {
+  // Koios liefert ggf. in token_registry_metadata
   return assetInfo?.token_registry_metadata?.decimals ?? assetInfo?.decimals ?? 0;
 }
 export function scale(n: string | number, decimals = 0): number {
