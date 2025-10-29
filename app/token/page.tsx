@@ -1,6 +1,6 @@
 // app/token/page.tsx
 import {
-  getAssetInfoWithFallback, getAssetTxsWithFallback, getAssetAddressesWithFallback,
+  getAssetInfo, getAssetTxs, getAssetAddresses,
   getTxInfosBulk, getTip, extractDecimals, scale, fmt
 } from "@/lib/koios";
 
@@ -15,9 +15,9 @@ export default async function TokenPage({ searchParams }: { searchParams?: Recor
   const pageSize = 25;
 
   const [info, txsResp, holdersResp, tip] = await Promise.all([
-    getAssetInfoWithFallback().catch(() => []),
-    getAssetTxsWithFallback().catch(() => []),
-    getAssetAddressesWithFallback(20000).catch(() => []),
+    getAssetInfo().catch(() => []),
+    getAssetTxs().catch(() => []),
+    getAssetAddresses(10000).catch(() => []),
     getTip().catch(() => []),
   ]);
 
@@ -34,9 +34,10 @@ export default async function TokenPage({ searchParams }: { searchParams?: Recor
   const head = (tip as any[])?.[0]?.block_no ?? null;
 
   // Holders (robust)
-  const rawHolders: any[] = ((holdersResp as any[])?.[0]?.addresses ?? (Array.isArray(holdersResp) ? holdersResp : []) ?? []);
+  const rawHolders: any[] =
+    ((holdersResp as any[])?.[0]?.addresses ?? (Array.isArray(holdersResp) ? holdersResp : []) ?? []);
   const holderRows: HolderRow[] = rawHolders
-    .map((h: any) => ({
+    .map((h: any): HolderRow => ({
       address: String(h?.address ?? h?.payment_address ?? ""),
       raw: Number(h?.quantity ?? h?.asset_qty ?? 0),
       scaled: scale(h?.quantity ?? h?.asset_qty ?? 0, decimals),
