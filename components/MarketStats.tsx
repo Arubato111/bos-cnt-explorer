@@ -55,8 +55,8 @@ export default function MarketStats() {
     return () => clearInterval(id);
   }, []);
 
-  const ok = data && "ok" in data && data.ok;
-  const v = (ok ? (data as RespOK) : null);
+  const ok = !!(data && "ok" in data && data.ok);
+  const v = ok ? (data as RespOK) : null;
 
   return (
     <section className="rounded-2xl bg-white/5 border border-white/10 p-4">
@@ -67,16 +67,16 @@ export default function MarketStats() {
 
       <div className="grid md:grid-cols-3 gap-4 text-sm">
         <Card label="Ranking" value={v?.rank != null ? `No.${v.rank}` : "–"} />
-        <Card label="Market Cap" value={fmtMoney(v?.marketCapUsd, 0)} />
-        <Card label="Fully Diluted MC" value={fmtMoney(v?.fdvUsd, 0)} />
-        <Card label="Circulating Supply" value={`${fmt(v?.circulating, 2)} BOS`} />
-        <Card label="Total Supply" value={`${fmt(v?.totalSupply, 2)} BOS`} />
-        <Card label="Max Supply" value={`${fmt(v?.maxSupply, 2)} BOS`} />
+        <Card label="Market Cap" value={fmtMoney(v?.marketCapUsd ?? null, 0)} />
+        <Card label="Fully Diluted MC" value={fmtMoney(v?.fdvUsd ?? null, 0)} />
+        <Card label="Circulating Supply" value={`${fmt(v?.circulating ?? null, 2)} BOS`} />
+        <Card label="Total Supply" value={`${fmt(v?.totalSupply ?? null, 2)} BOS`} />
+        <Card label="Max Supply" value={`${fmt(v?.maxSupply ?? null, 2)} BOS`} />
         <Card label="MC / FDV" value={v?.mcToFdvPct != null ? `${fmt(v.mcToFdvPct, 2)}%` : "–"} />
-        <Card label="All-Time High" value={`${fmtMoney(v?.athUsd, 4)} (${dstr(v?.athDate)})`} />
-        <Card label="All-Time Low" value={`${fmtMoney(v?.atlUsd, 6)} (${dstr(v?.atlDate)})`} />
-        <Card label="Release Date" value={dstr(v?.releaseDate)} />
-        <Card label="Spot Price (USD)" value={fmtMoney(v?.priceUsd, 6)} />
+        <Card label="All-Time High" value={`${fmtMoney(v?.athUsd ?? null, 4)} (${dstr(v?.athDate ?? null)})`} />
+        <Card label="All-Time Low" value={`${fmtMoney(v?.atlUsd ?? null, 6)} (${dstr(v?.atlDate ?? null)})`} />
+        <Card label="Release Date" value={dstr(v?.releaseDate ?? null)} />
+        <Card label="Spot Price (USD)" value={fmtMoney(v?.priceUsd ?? null, 6)} />
       </div>
     </section>
   );
