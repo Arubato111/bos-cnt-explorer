@@ -4,20 +4,18 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 /**
- * BOS CNT Explorer — Single-file UI
- * - Dual price strip: BOS/USDT (Gate) + BOS/ADA (derived via CoinGecko)
- * - Tabbed chart: BOS/USDT vs BOS/ADA with 1H/24H/7D
- * - English UI, clear sources, “Derived” badge for ADA
- * No extra API routes needed (direct fetch to Gate.io & CoinGecko).
+ * BOS CNT Explorer — Clean UI
+ * - BOS/USDT (Gate) + derived BOS/ADA (CoinGecko ADA/USD)
+ * - Minimal, consistent layout, robust fallbacks, no duplicates
  */
 
-// ------- Config -------
+// ------- Constants -------
 const POLICY_ID = '1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d';
 const CNT_ASSET_ID =
   '1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e';
 const FINGERPRINT = 'asset1mfx4kv75jstyws0u0lpe70w7ny76lhsswampzd';
 
-// ------- Helpers -------
+// ------- Utils -------
 function money(n: number | null | undefined, f = 6) {
   if (n == null || !Number.isFinite(n)) return 'Not available yet';
   return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: f }).format(n)}`;
@@ -27,18 +25,18 @@ function num(n: number | null | undefined, f = 6) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: f }).format(n);
 }
 
-// ------- Data hooks (direct public APIs) -------
+// ------- Types -------
 type GateTicker = {
   currency_pair: string;
   last: string;
   base_volume: string;
   quote_volume: string;
-  change_percentage?: string;
 };
-type GateCandle = string[]; // [t, v, c, h, l, o] strings
+type GateCandle = string[]; // [t, v, c, h, l, o]
 type CGSimple = { [k: string]: { usd: number } };
 type CGSeries = { prices: [number, number][] };
 
+// ------- Data Hooks -------
 function useGateTicker() {
   const [state, setState] = useState<{ price: number | null; volUSDT: number | null; volBOS: number | null }>({
     price: null,
@@ -49,10 +47,10 @@ function useGateTicker() {
     let cancel = false;
     async function load() {
       try {
-        const r = await fetch(
-          'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BOS_USDT',
-          { cache: 'no-store', headers: { accept: 'application/json' } }
-        );
+        const r = await fetch('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BOS_USDT', {
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+        });
         const arr: GateTicker[] = await r.json();
         const t = arr?.[0];
         if (!cancel) {
@@ -118,10 +116,10 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
     let cancel = false;
     async function load() {
       try {
-        const r1 = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd',
-          { cache: 'no-store', headers: { accept: 'application/json' } }
-        );
+        const r1 = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd', {
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+        });
         const j1: CGSimple = await r1.json();
         if (!cancel) setLatestUsd(j1?.cardano?.usd ?? null);
       } catch {
@@ -137,10 +135,11 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
         const url = `https://api.coingecko.com/api/v3/coins/cardano/market_chart?vs_currency=usd&days=${cfg.days}&interval=${cfg.interval}`;
         const r2 = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
         const j2: CGSeries = await r2.json();
-        const pts =
-          Array.isArray(j2?.prices)
-            ? j2.prices.map((p) => ({ t: Number(p[0]), usd: Number(p[1]) })).filter((x) => Number.isFinite(x.t) && Number.isFinite(x.usd))
-            : [];
+        const pts = Array.isArray(j2?.prices)
+          ? j2.prices
+              .map((p) => ({ t: Number(p[0]), usd: Number(p[1]) }))
+              .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.usd))
+          : [];
         if (!cancel) setSeries(pts);
       } catch {
         if (!cancel) setSeries([]);
@@ -156,10 +155,10 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
   return { latestUsd, series };
 }
 
-// ------- UI pieces (inline) -------
+// ------- UI -------
 function HeaderBar() {
   return (
-    <header className="mb-6 flex items-center gap-4">
+    <header className="mb-8 flex items-center gap-4">
       <div className="text-xl font-semibold">BOS CNT Explorer</div>
       <div className="flex-1">
         <input
@@ -178,9 +177,15 @@ function HeaderBar() {
         />
       </div>
       <nav className="hidden md:flex items-center gap-3 text-sm">
-        <Link href="https://bitcoinos.build/" target="_blank" className="text-[#66a3ff] hover:underline">Website</Link>
-        <Link href="https://x.com/BTC_OS" target="_blank" className="text-[#66a3ff] hover:underline">X</Link>
-        <Link href="https://linktr.ee/bitcoinos" target="_blank" className="text-[#66a3ff] hover:underline">Discord</Link>
+        <Link href="https://bitcoinos.build/" target="_blank" className="text-[#66a3ff] hover:underline">
+          Website
+        </Link>
+        <Link href="https://x.com/BTC_OS" target="_blank" className="text-[#66a3ff] hover:underline">
+          X
+        </Link>
+        <Link href="https://linktr.ee/bitcoinos" target="_blank" className="text-[#66a3ff] hover:underline">
+          Discord
+        </Link>
       </nav>
     </header>
   );
@@ -190,46 +195,70 @@ function HeroBlock() {
   return (
     <section className="grid gap-6 md:grid-cols-3 items-start">
       <div className="md:col-span-2">
-        <div className="mb-4 text-center py-2 rounded-lg bg-[#66a3ff]/20 border border-[#66a3ff]/40 text-[#cfe4ff] text-sm font-medium">
-          🔵 BOS Explorer UI v4 — Live Build Test
+        {/* Version banner (single, clear) */}
+        <div className="mb-5 text-center py-2 rounded-lg bg-[#66a3ff]/15 border border-[#66a3ff]/40 text-[#cfe4ff] text-sm font-medium">
+          🔵 BOS Explorer — Clean UI Build
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-semibold mt-1">BOS CNT Explorer</h1>
-        <p className="mt-3 text-white/80">
-          Unofficial explorer by <strong>Arubato</strong> for tracking the <strong>BOS</strong> (BitcoinOS) token activity on <strong>Cardano</strong>.
-          The goal is to monitor the BOS ecosystem on Cardano’s CNT standard.
+        <h1 className="text-4xl font-semibold tracking-tight">BOS CNT Explorer</h1>
+        <p className="mt-4 text-white/80 leading-relaxed">
+          Unofficial explorer by <strong>Arubato</strong> to track <strong>BOS</strong> (BitcoinOS) token activity on <strong>Cardano</strong>.
+          We focus on the CNT standard and provide market data until full on-chain feeds are available.
         </p>
         <p className="mt-3 text-white/70">
-          <strong>What is BitcoinOS?</strong> A smart-contract operating system to scale Bitcoin using rollups and ZK.{' '}
-          <Link href="https://bitcoinos.build/" className="text-[#66a3ff] hover:underline" target="_blank">Website</Link>{' · '}
-          <Link href="https://x.com/BTC_OS" className="text-[#66a3ff] hover:underline" target="_blank">X (Twitter)</Link>{' · '}
-          <Link href="https://linktr.ee/bitcoinos" className="text-[#66a3ff] hover:underline" target="_blank">Discord</Link>.
+          <strong>What is BitcoinOS?</strong> A smart-contract OS to scale Bitcoin with rollups & ZK.{' '}
+          <Link href="https://bitcoinos.build/" className="text-[#66a3ff] hover:underline" target="_blank">
+            Website
+          </Link>{' '}
+          ·{' '}
+          <Link href="https://x.com/BTC_OS" className="text-[#66a3ff] hover:underline" target="_blank">
+            X (Twitter)
+          </Link>{' '}
+          ·{' '}
+          <Link href="https://linktr.ee/bitcoinos" className="text-[#66a3ff] hover:underline" target="_blank">
+            Discord
+          </Link>
+          .
         </p>
         <p className="mt-3 text-white/70">
-          <strong>Cardano’s role:</strong> Cardano hosts the BOS <em>CNT</em> token for liquidity and community trading within its DeFi ecosystem.
+          <strong>Cardano’s role:</strong> Cardano hosts the BOS CNT for liquidity and DeFi activity in its ecosystem.
         </p>
         <p className="mt-3 text-xs text-white/60">
-          Data sources: Gate.io (BOS/USDT), CoinGecko (USD & ADA). If a metric is not available right now, we display <em>Not available yet</em>.
+          Data sources: Gate.io (BOS/USDT), CoinGecko (USD & ADA). If a metric is unavailable, we show <em>Not available yet</em>.
         </p>
       </div>
 
       <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
         <div className="text-xs text-white/60">Official Contracts</div>
         <ul className="mt-2 text-sm space-y-2">
-          <li><strong>Cardano (CNT)</strong>
+          <li>
+            <strong>Cardano (CNT)</strong>
             <div className="font-mono text-xs break-all">Asset ID: {CNT_ASSET_ID}</div>
             <div className="font-mono text-xs break-all">Policy ID: {POLICY_ID}</div>
             <div className="font-mono text-xs break-all">Fingerprint: {FINGERPRINT}</div>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(CNT_ASSET_ID);
+                  alert('Asset ID copied');
+                } catch {}
+              }}
+              className="mt-2 px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs"
+            >
+              Copy Asset ID
+            </button>
           </li>
-          <li><strong>Ethereum (ERC-20)</strong>
+          <li>
+            <strong>Ethereum (ERC-20)</strong>
             <div className="font-mono text-xs break-all">0x13239C268BEDDd88aD0Cb02050D3ff6a9d00de6D</div>
           </li>
-          <li><strong>BNB Chain (BEP-20)</strong>
+          <li>
+            <strong>BNB Chain (BEP-20)</strong>
             <div className="font-mono text-xs break-all">0xAe1E85c3665b70B682dEfd778E3dAFDF09ed3B0f</div>
           </li>
         </ul>
         <p className="mt-3 text-xs text-white/60">
-          Currently, Gate.io lists both <strong>ERC-20</strong> and <strong>CNT</strong>. We track the <strong>CNT</strong> market because Gate.io is presently the only centralized venue for BOS-CNT. A Minswap pool is expected soon (per BitcoinOS).
+          Gate.io lists both <strong>ERC-20</strong> and <strong>CNT</strong>. We track the <strong>CNT</strong> market because it’s currently the only centralized venue for BOS-CNT. A Minswap pool is expected soon (per BitcoinOS).
         </p>
       </div>
     </section>
@@ -238,38 +267,31 @@ function HeroBlock() {
 
 function DualPriceStrip() {
   const gate = useGateTicker();
-  const [bosUsd, setBosUsd] = useState<number | null>(null);
   const [adaUsd, setAdaUsd] = useState<number | null>(null);
 
   useEffect(() => {
     let cancel = false;
-    async function loadUsd() {
+    async function load() {
       try {
-        const bos = gate.price ?? null; // Gate BOS/USDT as USD proxy
-        if (!cancel) setBosUsd(bos ?? null);
-      } catch {
-        if (!cancel) setBosUsd(null);
-      }
-      try {
-        const r = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd',
-          { cache: 'no-store', headers: { accept: 'application/json' } }
-        );
+        const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd', {
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+        });
         const j: CGSimple = await r.json();
         if (!cancel) setAdaUsd(j?.cardano?.usd ?? null);
       } catch {
         if (!cancel) setAdaUsd(null);
       }
     }
-    loadUsd();
-    const id = setInterval(loadUsd, 15000);
+    load();
+    const id = setInterval(load, 15000);
     return () => {
       cancel = true;
       clearInterval(id);
     };
-  }, [gate.price]);
+  }, []);
 
-  const bosAda = bosUsd != null && adaUsd != null && adaUsd > 0 ? bosUsd / adaUsd : null;
+  const bosAda = gate.price != null && adaUsd != null && adaUsd > 0 ? gate.price / adaUsd : null;
 
   return (
     <section className="grid md:grid-cols-2 gap-4">
@@ -284,7 +306,7 @@ function DualPriceStrip() {
       <Tile
         title="BOS/ADA"
         value={num(bosAda, 6)}
-        subLeft={`BOS/USD: ${money(bosUsd, 6)}`}
+        subLeft={`BOS/USD: ${money(gate.price, 6)}`}
         subRight={`ADA/USD: ${money(adaUsd, 6)}`}
         badge="Derived from USD feeds (CoinGecko)"
       />
@@ -308,18 +330,18 @@ function Tile({
   link?: { href: string; label: string };
 }) {
   return (
-    <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+    <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium">{title}</h2>
         {badge ? <span className="text-[10px] px-2 py-0.5 rounded bg-white/10">{badge}</span> : null}
       </div>
-      <div className="mt-1 text-2xl">{value}</div>
-      <div className="mt-1 text-xs text-white/70 flex items-center justify-between gap-3">
+      <div className="mt-2 text-3xl tracking-tight">{value}</div>
+      <div className="mt-2 text-xs text-white/70 flex items-center justify-between gap-3">
         <span className="truncate">{subLeft ?? '\u00A0'}</span>
         <span className="truncate">{subRight ?? '\u00A0'}</span>
       </div>
       {link ? (
-        <div className="mt-2 text-sm">
+        <div className="mt-3 text-sm">
           <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={link.href}>
             {link.label}
           </a>
@@ -334,7 +356,7 @@ function TabbedChart() {
   type Tab = 'usdt' | 'ada';
 
   const [tab, setTab] = useState<Tab>('usdt');
-  const [range, setRange] = useState<Range>('1h');
+  const [range, setRange] = useState<Range>('24h');
 
   const gate = useGateSeries(range);
   const ada = useAdaUsd(range);
@@ -346,7 +368,8 @@ function TabbedChart() {
     return g
       .map((p) => {
         // nearest ADA point
-        let idx = 0, best = Infinity;
+        let idx = 0,
+          best = Infinity;
         for (let i = 0; i < a.length; i++) {
           const d = Math.abs(a[i].t - p.t);
           if (d < best) {
@@ -355,7 +378,7 @@ function TabbedChart() {
           }
         }
         const adaUsd = a[idx].usd;
-        const bosUsd = p.close; // USDT peg
+        const bosUsd = p.close; // USDT peg ~ USD
         const v = adaUsd > 0 ? bosUsd / adaUsd : null;
         return v != null ? { t: p.t, v } : null;
       })
@@ -367,16 +390,26 @@ function TabbedChart() {
   const sourceLabel = tab === 'usdt' ? 'Source: Gate.io' : 'Derived: BOS/USD ÷ ADA/USD (CoinGecko)';
 
   return (
-    <section className="rounded-2xl bg-white/5 border border-white/10 p-4">
+    <section className="rounded-2xl bg-white/5 border border-white/10 p-5">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>BOS/USDT</TabButton>
-          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>BOS/ADA</TabButton>
+          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>
+            BOS/USDT
+          </TabButton>
+          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>
+            BOS/ADA
+          </TabButton>
         </div>
         <div className="flex items-center gap-2">
-          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>1H</RangeButton>
-          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>24H</RangeButton>
-          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>7D</RangeButton>
+          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>
+            1H
+          </RangeButton>
+          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>
+            24H
+          </RangeButton>
+          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>
+            7D
+          </RangeButton>
         </div>
       </header>
 
@@ -393,20 +426,30 @@ function TabbedChart() {
 
 function TabButton({ active, children, onClick }: { active: boolean; children: any; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`px-3 py-1 rounded-lg ${active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'}`}>
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 rounded-lg transition ${
+        active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
+      }`}
+    >
       {children}
     </button>
   );
 }
 function RangeButton({ active, children, onClick }: { active: boolean; children: any; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`px-2 py-1 rounded ${active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'}`}>
+    <button
+      onClick={onClick}
+      className={`px-2 py-1 rounded transition ${
+        active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
+      }`}
+    >
       {children}
     </button>
   );
 }
 
-/** FIXED CHART: correct Y-axis (top=max, bottom=min) + more padding */
+/** Clean SVG line chart with correct Y-axis (top=max, bottom=min) and generous padding */
 function SVGChart({
   series,
   yLabel,
@@ -418,37 +461,45 @@ function SVGChart({
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; label: string; v: number } | null>(null);
 
-  // more comfortable paddings
-  const w = 760, h = 300, padL = 56, padR = 24, padT = 20, padB = 36;
+  const w = 780,
+    h = 320,
+    padL = 60,
+    padR = 28,
+    padT = 24,
+    padB = 40;
 
   const xs = series.map((p) => p.t);
   const ys = series.map((p) => p.v);
-  const mn = ys.length ? Math.min(...ys) : 0;
-  const mx = ys.length ? Math.max(...ys) : 1;
+
+  const hasData = xs.length > 1 && ys.length > 1 && ys.some((n) => Number.isFinite(n));
+  const mn = hasData ? Math.min(...ys) : 0;
+  const mx = hasData ? Math.max(...ys) : 1;
   const span = mx - mn || 1;
   const x0 = xs[0] ?? 0;
   const x1 = xs[xs.length - 1] ?? 1;
 
-  const path = series
-    .map((p, i) => {
-      const xr = (p.t - x0) / (x1 - x0 || 1);
-      const x = padL + xr * (w - padL - padR);
-      const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span); // larger -> higher (top)
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
+  const path = hasData
+    ? series
+        .map((p, i) => {
+          const xr = (p.t - x0) / (x1 - x0 || 1);
+          const x = padL + xr * (w - padL - padR);
+          const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span);
+          return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(' ')
+    : '';
 
   function fmt(n: number, f = 6) {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: f }).format(n);
   }
 
   return (
-    <div className="mt-3 relative">
+    <div className="mt-4 relative">
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="w-full h-[300px]"
+        className="w-full h-[320px]"
         onMouseMove={(e) => {
-          if (!series.length) return;
+          if (!hasData) return;
           const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
           const rx = e.clientX - rect.left;
           const ratio = Math.min(1, Math.max(0, (rx - padL) / (w - padL - padR)));
@@ -461,7 +512,7 @@ function SVGChart({
         onMouseLeave={() => setHover(null)}
       >
         {/* grid */}
-        <g stroke="currentColor" opacity="0.15">
+        <g stroke="currentColor" opacity="0.14">
           {Array.from({ length: 5 }, (_, i) => {
             const y = padT + (i * (h - padT - padB)) / 4;
             return <line key={i} x1={padL} x2={w - padR} y1={y} y2={y} />;
@@ -474,25 +525,33 @@ function SVGChart({
           <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} />
         </g>
 
-        {/* y ticks — TOP = MAX, BOTTOM = MIN */}
-        <g fill="currentColor" opacity="0.75" fontSize="10">
+        {/* y ticks — top=max, bottom=min */}
+        <g fill="currentColor" opacity="0.8" fontSize="10">
           {Array.from({ length: 5 }, (_, i) => {
             const y = padT + (i * (h - padT - padB)) / 4;
-            const val = mx - (span * i) / 4; // inverted labels
+            const val = mx - (span * i) / 4;
             return (
               <text key={i} x={8} y={y + 3}>
                 {fmt(val, 6)}
               </text>
             );
           })}
-          <text x={8} y={14}>{yLabel}</text>
+          <text x={8} y={16}>
+            {yLabel}
+          </text>
         </g>
 
-        {/* line */}
-        <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
+        {/* line or empty state */}
+        {hasData ? (
+          <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
+        ) : (
+          <text x={padL + 8} y={padT + 20} fill="currentColor" opacity="0.6" fontSize="12">
+            No data available yet
+          </text>
+        )}
 
         {/* hover crosshair */}
-        {hover && (
+        {hover && hasData && (
           <>
             <line x1={hover.x} x2={hover.x} y1={padT} y2={h - padB} stroke="currentColor" opacity="0.35" />
             <circle cx={hover.x} cy={hover.y} r={3} fill="currentColor" />
@@ -500,9 +559,9 @@ function SVGChart({
         )}
       </svg>
 
-      <div className="mt-1 text-xs text-white/60">{sourceLabel}</div>
+      <div className="mt-2 text-xs text-white/60">{sourceLabel}</div>
 
-      {hover && (
+      {hover && hasData && (
         <div
           className="absolute px-2 py-1 rounded bg-black/80 text-xs backdrop-blur"
           style={{ left: Math.max(0, hover.x - 70), top: Math.max(0, hover.y - 36) }}
@@ -519,38 +578,23 @@ function SVGChart({
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#0b0f1b] text-white">
-      <div className="max-w-6xl mx-auto px-4 py-4">
+      <div className="max-w-6xl mx-auto px-5 py-6">
         <HeaderBar />
         <HeroBlock />
 
-        {/* Dual price strip */}
-        <div className="mt-6">
+        {/* Prices */}
+        <div className="mt-8">
           <DualPriceStrip />
         </div>
 
-        {/* Tabbed chart */}
-        <div className="mt-6">
+        {/* Chart */}
+        <div className="mt-8">
           <TabbedChart />
         </div>
 
-        {/* Quick links & copy */}
-        <section className="mt-8 grid md:grid-cols-2 gap-6">
-          <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
-            <div className="text-xs text-white/60">BOS CNT Asset (Cardano)</div>
-            <div className="mt-1 font-mono break-all text-sm">{CNT_ASSET_ID}</div>
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(CNT_ASSET_ID);
-                  alert('Asset ID copied');
-                } catch {}
-              }}
-              className="mt-2 px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-sm"
-            >
-              Copy
-            </button>
-          </div>
-          <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+        {/* Links */}
+        <section className="mt-10 grid md:grid-cols-2 gap-6">
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
             <div className="text-xs text-white/60">Quick Links</div>
             <ul className="mt-2 text-sm space-y-2">
               <li>
@@ -570,12 +614,12 @@ export default function Home() {
               </li>
             </ul>
             <p className="mt-3 text-xs text-white/60">
-              Purpose: track the BOS ecosystem on Cardano (CNT) — prices, trading, and, as soon as available, live on-chain metrics.
+              Purpose: track the BOS ecosystem on Cardano (CNT)—prices, trading, and, once live, on-chain metrics (holders, txs).
             </p>
           </div>
         </section>
 
-        <footer className="mt-10 text-xs text-white/60">Unofficial — by Arubato. Not affiliated with BitcoinOS. © 2025</footer>
+        <footer className="mt-12 text-xs text-white/60">Unofficial — by Arubato. Not affiliated with BitcoinOS. © 2025</footer>
       </div>
     </main>
   );
