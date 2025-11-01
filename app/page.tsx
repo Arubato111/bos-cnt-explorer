@@ -81,7 +81,6 @@ function useGateSeries(range: '1h' | '24h' | '7d') {
   useEffect(() => {
     let cancel = false;
     async function load() {
-      // Map range -> interval/limit
       const cfg =
         range === '1h'
           ? { interval: '1m', limit: 60 }
@@ -119,7 +118,6 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
     let cancel = false;
     async function load() {
       try {
-        // Latest ADA/USD
         const r1 = await fetch(
           'https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd',
           { cache: 'no-store', headers: { accept: 'application/json' } }
@@ -130,7 +128,6 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
         if (!cancel) setLatestUsd(null);
       }
       try {
-        // Series
         const cfg =
           range === '1h'
             ? { days: '1', interval: 'minute' }
@@ -193,7 +190,10 @@ function HeroBlock() {
   return (
     <section className="grid gap-6 md:grid-cols-3 items-start">
       <div className="md:col-span-2">
-        <div className="text-xs text-white/60">UI live</div>
+        <div className="mb-4 text-center py-2 rounded-lg bg-[#66a3ff]/20 border border-[#66a3ff]/40 text-[#cfe4ff] text-sm font-medium">
+          🔵 BOS Explorer UI v4 — Live Build Test
+        </div>
+
         <h1 className="text-3xl md:text-4xl font-semibold mt-1">BOS CNT Explorer</h1>
         <p className="mt-3 text-white/80">
           Unofficial explorer by <strong>Arubato</strong> for tracking the <strong>BOS</strong> (BitcoinOS) token activity on <strong>Cardano</strong>.
@@ -245,8 +245,7 @@ function DualPriceStrip() {
     let cancel = false;
     async function loadUsd() {
       try {
-        // BOS/USD: use Gate BOS/USDT (peg) as USD proxy
-        const bos = gate.price ?? null;
+        const bos = gate.price ?? null; // Gate BOS/USDT as USD proxy
         if (!cancel) setBosUsd(bos ?? null);
       } catch {
         if (!cancel) setBosUsd(null);
@@ -347,8 +346,7 @@ function TabbedChart() {
     return g
       .map((p) => {
         // nearest ADA point
-        let idx = 0,
-          best = Infinity;
+        let idx = 0, best = Infinity;
         for (let i = 0; i < a.length; i++) {
           const d = Math.abs(a[i].t - p.t);
           if (d < best) {
@@ -372,23 +370,13 @@ function TabbedChart() {
     <section className="rounded-2xl bg-white/5 border border-white/10 p-4">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>
-            BOS/USDT
-          </TabButton>
-          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>
-            BOS/ADA
-          </TabButton>
+          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>BOS/USDT</TabButton>
+          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>BOS/ADA</TabButton>
         </div>
         <div className="flex items-center gap-2">
-          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>
-            1H
-          </RangeButton>
-          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>
-            24H
-          </RangeButton>
-          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>
-            7D
-          </RangeButton>
+          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>1H</RangeButton>
+          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>24H</RangeButton>
+          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>7D</RangeButton>
         </div>
       </header>
 
@@ -418,25 +406,34 @@ function RangeButton({ active, children, onClick }: { active: boolean; children:
   );
 }
 
-function SVGChart({ series, yLabel, sourceLabel }: { series: { t: number; v: number }[]; yLabel: string; sourceLabel: string }) {
+/** FIXED CHART: correct Y-axis (top=max, bottom=min) + more padding */
+function SVGChart({
+  series,
+  yLabel,
+  sourceLabel,
+}: {
+  series: { t: number; v: number }[];
+  yLabel: string;
+  sourceLabel: string;
+}) {
   const [hover, setHover] = useState<{ x: number; y: number; label: string; v: number } | null>(null);
-  const w = 720,
-    h = 260,
-    pad = 40;
 
-  const xs = series.map((p) => p.t),
-    ys = series.map((p) => p.v);
-  const mn = ys.length ? Math.min(...ys) : 0,
-    mx = ys.length ? Math.max(...ys) : 1;
+  // more comfortable paddings
+  const w = 760, h = 300, padL = 56, padR = 24, padT = 20, padB = 36;
+
+  const xs = series.map((p) => p.t);
+  const ys = series.map((p) => p.v);
+  const mn = ys.length ? Math.min(...ys) : 0;
+  const mx = ys.length ? Math.max(...ys) : 1;
   const span = mx - mn || 1;
-  const x0 = xs[0] ?? 0,
-    x1 = xs[xs.length - 1] ?? 1;
+  const x0 = xs[0] ?? 0;
+  const x1 = xs[xs.length - 1] ?? 1;
 
   const path = series
     .map((p, i) => {
       const xr = (p.t - x0) / (x1 - x0 || 1);
-      const x = pad + xr * (w - 2 * pad);
-      const y = pad + (h - 2 * pad) * (1 - (p.v - mn) / span);
+      const x = padL + xr * (w - padL - padR);
+      const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span); // larger -> higher (top)
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
@@ -449,61 +446,66 @@ function SVGChart({ series, yLabel, sourceLabel }: { series: { t: number; v: num
     <div className="mt-3 relative">
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="w-full h-[280px]"
+        className="w-full h-[300px]"
         onMouseMove={(e) => {
           if (!series.length) return;
           const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
           const rx = e.clientX - rect.left;
-          const ratio = Math.min(1, Math.max(0, (rx - pad) / (w - 2 * pad)));
+          const ratio = Math.min(1, Math.max(0, (rx - padL) / (w - padL - padR)));
           const idx = Math.round(ratio * (series.length - 1));
           const p = series[idx];
-          const x = pad + ratio * (w - 2 * pad);
-          const y = pad + (h - 2 * pad) * (1 - (p.v - mn) / span);
+          const x = padL + ratio * (w - padL - padR);
+          const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span);
           setHover({ x, y, label: new Date(p.t).toLocaleString(), v: p.v });
         }}
         onMouseLeave={() => setHover(null)}
       >
         {/* grid */}
         <g stroke="currentColor" opacity="0.15">
-          {Array.from({ length: 5 }, (_, i) => (
-            <line key={i} x1={pad} x2={w - pad} y1={pad + (i * (h - 2 * pad)) / 4} y2={pad + (i * (h - 2 * pad)) / 4} />
-          ))}
+          {Array.from({ length: 5 }, (_, i) => {
+            const y = padT + (i * (h - padT - padB)) / 4;
+            return <line key={i} x1={padL} x2={w - padR} y1={y} y2={y} />;
+          })}
         </g>
+
         {/* axes */}
         <g stroke="currentColor" opacity="0.3">
-          <line x1={pad} y1={pad} x2={pad} y2={h - pad} />
-          <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} />
+          <line x1={padL} y1={padT} x2={padL} y2={h - padB} />
+          <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} />
         </g>
-        {/* y ticks */}
-        <g fill="currentColor" opacity="0.6" fontSize="10">
+
+        {/* y ticks — TOP = MAX, BOTTOM = MIN */}
+        <g fill="currentColor" opacity="0.75" fontSize="10">
           {Array.from({ length: 5 }, (_, i) => {
-            const yy = pad + (i * (h - 2 * pad)) / 4;
-            const val = mn + (span * i) / 4;
+            const y = padT + (i * (h - padT - padB)) / 4;
+            const val = mx - (span * i) / 4; // inverted labels
             return (
-              <text key={i} x={6} y={yy + 3}>
+              <text key={i} x={8} y={y + 3}>
                 {fmt(val, 6)}
               </text>
             );
           })}
-          <text x={6} y={14}>
-            {yLabel}
-          </text>
+          <text x={8} y={14}>{yLabel}</text>
         </g>
+
         {/* line */}
         <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
-        {/* hover */}
+
+        {/* hover crosshair */}
         {hover && (
           <>
-            <line x1={hover.x} x2={hover.x} y1={pad} y2={h - pad} stroke="currentColor" opacity="0.35" />
+            <line x1={hover.x} x2={hover.x} y1={padT} y2={h - padB} stroke="currentColor" opacity="0.35" />
             <circle cx={hover.x} cy={hover.y} r={3} fill="currentColor" />
           </>
         )}
       </svg>
+
       <div className="mt-1 text-xs text-white/60">{sourceLabel}</div>
+
       {hover && (
         <div
-          className="absolute px-2 py-1 rounded bg-black/70 text-xs"
-          style={{ left: Math.max(0, hover.x - 60), top: Math.max(0, hover.y - 30) }}
+          className="absolute px-2 py-1 rounded bg-black/80 text-xs backdrop-blur"
+          style={{ left: Math.max(0, hover.x - 70), top: Math.max(0, hover.y - 36) }}
         >
           <div>{hover.label}</div>
           <div className="font-mono">{fmt(hover.v, 6)}</div>
