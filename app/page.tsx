@@ -3,12 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
-/**
- * BOS CNT Explorer — Clean UI
- * - BOS/USDT (Gate) + derived BOS/ADA (CoinGecko ADA/USD)
- * - Minimal, consistent layout, robust fallbacks, no duplicates
- */
-
 // ------- Constants -------
 const POLICY_ID = '1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d';
 const CNT_ASSET_ID =
@@ -26,17 +20,12 @@ function num(n: number | null | undefined, f = 6) {
 }
 
 // ------- Types -------
-type GateTicker = {
-  currency_pair: string;
-  last: string;
-  base_volume: string;
-  quote_volume: string;
-};
+type GateTicker = { currency_pair: string; last: string; base_volume: string; quote_volume: string };
 type GateCandle = string[]; // [t, v, c, h, l, o]
 type CGSimple = { [k: string]: { usd: number } };
 type CGSeries = { prices: [number, number][] };
 
-// ------- Data Hooks -------
+// ------- Data Hooks (Proxy via /api to avoid CORS) -------
 function useGateTicker() {
   const [state, setState] = useState<{ price: number | null; volUSDT: number | null; volBOS: number | null }>({
     price: null,
@@ -47,10 +36,7 @@ function useGateTicker() {
     let cancel = false;
     async function load() {
       try {
-        const r = await fetch('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BOS_USDT', {
-          cache: 'no-store',
-          headers: { accept: 'application/json' },
-        });
+        const r = await fetch('/api/gate/ticker', { cache: 'no-store' });
         const arr: GateTicker[] = await r.json();
         const t = arr?.[0];
         if (!cancel) {
@@ -86,8 +72,7 @@ function useGateSeries(range: '1h' | '24h' | '7d') {
           ? { interval: '15m', limit: 96 }
           : { interval: '1h', limit: 168 };
       try {
-        const url = `https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BOS_USDT&interval=${cfg.interval}&limit=${cfg.limit}`;
-        const r = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
+        const r = await fetch(`/api/gate/candles?interval=${cfg.interval}&limit=${cfg.limit}`, { cache: 'no-store' });
         const rows: GateCandle[] = await r.json();
         const pts =
           rows
@@ -136,9 +121,7 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
         const r2 = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
         const j2: CGSeries = await r2.json();
         const pts = Array.isArray(j2?.prices)
-          ? j2.prices
-              .map((p) => ({ t: Number(p[0]), usd: Number(p[1]) }))
-              .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.usd))
+          ? j2.prices.map((p) => ({ t: Number(p[0]), usd: Number(p[1]) })).filter((x) => Number.isFinite(x.t) && Number.isFinite(x.usd))
           : [];
         if (!cancel) setSeries(pts);
       } catch {
@@ -158,35 +141,34 @@ function useAdaUsd(range: '1h' | '24h' | '7d') {
 // ------- UI -------
 function HeaderBar() {
   return (
-    <header className="mb-8 flex items-center gap-4">
-      <div className="text-xl font-semibold">BOS CNT Explorer</div>
-      <div className="flex-1">
-        <input
-          placeholder="Search by Cardano address or transaction hash…"
-          className="w-full px-4 py-2 rounded-xl bg-white/10 border border-white/15 outline-none focus:border-[#66a3ff]"
-          onKeyDown={(e: any) => {
-            const v = (e.target as HTMLInputElement).value.trim();
-            if (e.key === 'Enter' && v) {
-              const isHex64 = /^[0-9a-f]{64}$/i.test(v);
-              const isAddr = /^addr1[0-9a-z]+$/i.test(v);
-              if (isHex64) window.location.href = `/tx/${v}`;
-              else if (isAddr) window.location.href = `/address/${v}`;
-              else window.location.href = `/token`;
-            }
-          }}
-        />
+    <header className="mb-8">
+      <div className="mb-5 text-center py-2 rounded-lg bg-[#66a3ff]/15 border border-[#66a3ff]/40 text-[#cfe4ff] text-sm font-medium">
+        🔵 BOS Explorer — Clean UI Build
       </div>
-      <nav className="hidden md:flex items-center gap-3 text-sm">
-        <Link href="https://bitcoinos.build/" target="_blank" className="text-[#66a3ff] hover:underline">
-          Website
-        </Link>
-        <Link href="https://x.com/BTC_OS" target="_blank" className="text-[#66a3ff] hover:underline">
-          X
-        </Link>
-        <Link href="https://linktr.ee/bitcoinos" target="_blank" className="text-[#66a3ff] hover:underline">
-          Discord
-        </Link>
-      </nav>
+      <div className="flex items-center gap-4">
+        <div className="text-xl font-semibold">BOS CNT Explorer</div>
+        <div className="flex-1">
+          <input
+            placeholder="Search by Cardano address or transaction hash…"
+            className="w-full px-4 py-2 rounded-xl bg-white/10 border border-white/15 outline-none focus:border-[#66a3ff]"
+            onKeyDown={(e: any) => {
+              const v = (e.target as HTMLInputElement).value.trim();
+              if (e.key === 'Enter' && v) {
+                const isHex64 = /^[0-9a-f]{64}$/i.test(v);
+                const isAddr = /^addr1[0-9a-z]+$/i.test(v);
+                if (isHex64) window.location.href = `/tx/${v}`;
+                else if (isAddr) window.location.href = `/address/${v}`;
+                else window.location.href = `/token`;
+              }
+            }}
+          />
+        </div>
+        <nav className="hidden md:flex items-center gap-3 text-sm">
+          <Link href="https://bitcoinos.build/" target="_blank" className="text-[#66a3ff] hover:underline">Website</Link>
+          <Link href="https://x.com/BTC_OS" target="_blank" className="text-[#66a3ff] hover:underline">X</Link>
+          <Link href="https://linktr.ee/bitcoinos" target="_blank" className="text-[#66a3ff] hover:underline">Discord</Link>
+        </nav>
+      </div>
     </header>
   );
 }
@@ -195,11 +177,6 @@ function HeroBlock() {
   return (
     <section className="grid gap-6 md:grid-cols-3 items-start">
       <div className="md:col-span-2">
-        {/* Version banner (single, clear) */}
-        <div className="mb-5 text-center py-2 rounded-lg bg-[#66a3ff]/15 border border-[#66a3ff]/40 text-[#cfe4ff] text-sm font-medium">
-          🔵 BOS Explorer — Clean UI Build
-        </div>
-
         <h1 className="text-4xl font-semibold tracking-tight">BOS CNT Explorer</h1>
         <p className="mt-4 text-white/80 leading-relaxed">
           Unofficial explorer by <strong>Arubato</strong> to track <strong>BOS</strong> (BitcoinOS) token activity on <strong>Cardano</strong>.
@@ -207,18 +184,9 @@ function HeroBlock() {
         </p>
         <p className="mt-3 text-white/70">
           <strong>What is BitcoinOS?</strong> A smart-contract OS to scale Bitcoin with rollups & ZK.{' '}
-          <Link href="https://bitcoinos.build/" className="text-[#66a3ff] hover:underline" target="_blank">
-            Website
-          </Link>{' '}
-          ·{' '}
-          <Link href="https://x.com/BTC_OS" className="text-[#66a3ff] hover:underline" target="_blank">
-            X (Twitter)
-          </Link>{' '}
-          ·{' '}
-          <Link href="https://linktr.ee/bitcoinos" className="text-[#66a3ff] hover:underline" target="_blank">
-            Discord
-          </Link>
-          .
+          <Link href="https://bitcoinos.build/" className="text-[#66a3ff] hover:underline" target="_blank">Website</Link>{' · '}
+          <Link href="https://x.com/BTC_OS" className="text-[#66a3ff] hover:underline" target="_blank">X (Twitter)</Link>{' · '}
+          <Link href="https://linktr.ee/bitcoinos" className="text-[#66a3ff] hover:underline" target="_blank">Discord</Link>.
         </p>
         <p className="mt-3 text-white/70">
           <strong>Cardano’s role:</strong> Cardano hosts the BOS CNT for liquidity and DeFi activity in its ecosystem.
@@ -231,29 +199,21 @@ function HeroBlock() {
       <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
         <div className="text-xs text-white/60">Official Contracts</div>
         <ul className="mt-2 text-sm space-y-2">
-          <li>
-            <strong>Cardano (CNT)</strong>
+          <li><strong>Cardano (CNT)</strong>
             <div className="font-mono text-xs break-all">Asset ID: {CNT_ASSET_ID}</div>
             <div className="font-mono text-xs break-all">Policy ID: {POLICY_ID}</div>
             <div className="font-mono text-xs break-all">Fingerprint: {FINGERPRINT}</div>
             <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(CNT_ASSET_ID);
-                  alert('Asset ID copied');
-                } catch {}
-              }}
+              onClick={async () => { try { await navigator.clipboard.writeText(CNT_ASSET_ID); alert('Asset ID copied'); } catch {} }}
               className="mt-2 px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs"
             >
               Copy Asset ID
             </button>
           </li>
-          <li>
-            <strong>Ethereum (ERC-20)</strong>
+          <li><strong>Ethereum (ERC-20)</strong>
             <div className="font-mono text-xs break-all">0x13239C268BEDDd88aD0Cb02050D3ff6a9d00de6D</div>
           </li>
-          <li>
-            <strong>BNB Chain (BEP-20)</strong>
+          <li><strong>BNB Chain (BEP-20)</strong>
             <div className="font-mono text-xs break-all">0xAe1E85c3665b70B682dEfd778E3dAFDF09ed3B0f</div>
           </li>
         </ul>
@@ -285,10 +245,7 @@ function DualPriceStrip() {
     }
     load();
     const id = setInterval(load, 15000);
-    return () => {
-      cancel = true;
-      clearInterval(id);
-    };
+    return () => { cancel = true; clearInterval(id); };
   }, []);
 
   const bosAda = gate.price != null && adaUsd != null && adaUsd > 0 ? gate.price / adaUsd : null;
@@ -315,20 +272,8 @@ function DualPriceStrip() {
 }
 
 function Tile({
-  title,
-  value,
-  subLeft,
-  subRight,
-  badge,
-  link,
-}: {
-  title: string;
-  value: string;
-  subLeft?: string;
-  subRight?: string;
-  badge?: string;
-  link?: { href: string; label: string };
-}) {
+  title, value, subLeft, subRight, badge, link,
+}: { title: string; value: string; subLeft?: string; subRight?: string; badge?: string; link?: { href: string; label: string } }) {
   return (
     <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
       <div className="flex items-center justify-between">
@@ -342,9 +287,7 @@ function Tile({
       </div>
       {link ? (
         <div className="mt-3 text-sm">
-          <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={link.href}>
-            {link.label}
-          </a>
+          <a className="text-[#66a3ff] hover:underline" target="_blank" rel="noreferrer" href={link.href}>{link.label}</a>
         </div>
       ) : null}
     </div>
@@ -363,26 +306,18 @@ function TabbedChart() {
 
   const adaDerived = useMemo(() => {
     if (!gate.length || !ada.series.length) return [] as { t: number; v: number }[];
-    const a = ada.series;
-    const g = gate;
-    return g
-      .map((p) => {
-        // nearest ADA point
-        let idx = 0,
-          best = Infinity;
-        for (let i = 0; i < a.length; i++) {
-          const d = Math.abs(a[i].t - p.t);
-          if (d < best) {
-            best = d;
-            idx = i;
-          }
-        }
-        const adaUsd = a[idx].usd;
-        const bosUsd = p.close; // USDT peg ~ USD
-        const v = adaUsd > 0 ? bosUsd / adaUsd : null;
-        return v != null ? { t: p.t, v } : null;
-      })
-      .filter(Boolean) as { t: number; v: number }[];
+    const a = ada.series, g = gate;
+    return g.map((p) => {
+      // nearest ADA point
+      let idx = 0, best = Infinity;
+      for (let i = 0; i < a.length; i++) {
+        const d = Math.abs(a[i].t - p.t);
+        if (d < best) { best = d; idx = i; }
+      }
+      const adaUsd = a[idx].usd, bosUsd = p.close;
+      const v = adaUsd > 0 ? bosUsd / adaUsd : null;
+      return v != null ? { t: p.t, v } : null;
+    }).filter(Boolean) as { t: number; v: number }[];
   }, [gate, ada.series]);
 
   const series = tab === 'usdt' ? gate.map((p) => ({ t: p.t, v: p.close })) : adaDerived;
@@ -393,23 +328,13 @@ function TabbedChart() {
     <section className="rounded-2xl bg-white/5 border border-white/10 p-5">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>
-            BOS/USDT
-          </TabButton>
-          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>
-            BOS/ADA
-          </TabButton>
+          <TabButton active={tab === 'usdt'} onClick={() => setTab('usdt')}>BOS/USDT</TabButton>
+          <TabButton active={tab === 'ada'} onClick={() => setTab('ada')}>BOS/ADA</TabButton>
         </div>
         <div className="flex items-center gap-2">
-          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>
-            1H
-          </RangeButton>
-          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>
-            24H
-          </RangeButton>
-          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>
-            7D
-          </RangeButton>
+          <RangeButton active={range === '1h'} onClick={() => setRange('1h')}>1H</RangeButton>
+          <RangeButton active={range === '24h'} onClick={() => setRange('24h')}>24H</RangeButton>
+          <RangeButton active={range === '7d'} onClick={() => setRange('7d')}>7D</RangeButton>
         </div>
       </header>
 
@@ -426,51 +351,28 @@ function TabbedChart() {
 
 function TabButton({ active, children, onClick }: { active: boolean; children: any; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded-lg transition ${
-        active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
-      }`}
-    >
+    <button onClick={onClick} className={`px-3 py-1 rounded-lg transition ${active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'}`}>
       {children}
     </button>
   );
 }
 function RangeButton({ active, children, onClick }: { active: boolean; children: any; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-2 py-1 rounded transition ${
-        active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
-      }`}
-    >
+    <button onClick={onClick} className={`px-2 py-1 rounded transition ${active ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'}`}>
       {children}
     </button>
   );
 }
 
-/** Clean SVG line chart with correct Y-axis (top=max, bottom=min) and generous padding */
 function SVGChart({
-  series,
-  yLabel,
-  sourceLabel,
-}: {
-  series: { t: number; v: number }[];
-  yLabel: string;
-  sourceLabel: string;
-}) {
+  series, yLabel, sourceLabel,
+}: { series: { t: number; v: number }[]; yLabel: string; sourceLabel: string }) {
   const [hover, setHover] = useState<{ x: number; y: number; label: string; v: number } | null>(null);
 
-  const w = 780,
-    h = 320,
-    padL = 60,
-    padR = 28,
-    padT = 24,
-    padB = 40;
+  const w = 780, h = 320, padL = 60, padR = 28, padT = 24, padB = 40;
 
   const xs = series.map((p) => p.t);
   const ys = series.map((p) => p.v);
-
   const hasData = xs.length > 1 && ys.length > 1 && ys.some((n) => Number.isFinite(n));
   const mn = hasData ? Math.min(...ys) : 0;
   const mx = hasData ? Math.max(...ys) : 1;
@@ -483,7 +385,7 @@ function SVGChart({
         .map((p, i) => {
           const xr = (p.t - x0) / (x1 - x0 || 1);
           const x = padL + xr * (w - padL - padR);
-          const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span);
+          const y = padT + (h - padT - padB) * (1 - (p.v - mn) / span); // larger -> higher
           return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
         })
         .join(' ')
@@ -496,8 +398,7 @@ function SVGChart({
   return (
     <div className="mt-4 relative">
       <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className="w-full h-[320px]"
+        viewBox={`0 0 ${w} ${h}`} className="w-full h-[320px]"
         onMouseMove={(e) => {
           if (!hasData) return;
           const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
@@ -511,37 +412,24 @@ function SVGChart({
         }}
         onMouseLeave={() => setHover(null)}
       >
-        {/* grid */}
         <g stroke="currentColor" opacity="0.14">
           {Array.from({ length: 5 }, (_, i) => {
             const y = padT + (i * (h - padT - padB)) / 4;
             return <line key={i} x1={padL} x2={w - padR} y1={y} y2={y} />;
           })}
         </g>
-
-        {/* axes */}
         <g stroke="currentColor" opacity="0.3">
           <line x1={padL} y1={padT} x2={padL} y2={h - padB} />
           <line x1={padL} y1={h - padB} x2={w - padR} y2={h - padB} />
         </g>
-
-        {/* y ticks — top=max, bottom=min */}
         <g fill="currentColor" opacity="0.8" fontSize="10">
           {Array.from({ length: 5 }, (_, i) => {
             const y = padT + (i * (h - padT - padB)) / 4;
-            const val = mx - (span * i) / 4;
-            return (
-              <text key={i} x={8} y={y + 3}>
-                {fmt(val, 6)}
-              </text>
-            );
+            const val = mx - (span * i) / 4; // top=max
+            return <text key={i} x={8} y={y + 3}>{fmt(val, 6)}</text>;
           })}
-          <text x={8} y={16}>
-            {yLabel}
-          </text>
+          <text x={8} y={16}>{yLabel}</text>
         </g>
-
-        {/* line or empty state */}
         {hasData ? (
           <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
         ) : (
@@ -549,8 +437,6 @@ function SVGChart({
             No data available yet
           </text>
         )}
-
-        {/* hover crosshair */}
         {hover && hasData && (
           <>
             <line x1={hover.x} x2={hover.x} y1={padT} y2={h - padB} stroke="currentColor" opacity="0.35" />
@@ -558,14 +444,10 @@ function SVGChart({
           </>
         )}
       </svg>
-
       <div className="mt-2 text-xs text-white/60">{sourceLabel}</div>
-
       {hover && hasData && (
-        <div
-          className="absolute px-2 py-1 rounded bg-black/80 text-xs backdrop-blur"
-          style={{ left: Math.max(0, hover.x - 70), top: Math.max(0, hover.y - 36) }}
-        >
+        <div className="absolute px-2 py-1 rounded bg-black/80 text-xs backdrop-blur"
+             style={{ left: Math.max(0, hover.x - 70), top: Math.max(0, hover.y - 36) }}>
           <div>{hover.label}</div>
           <div className="font-mono">{fmt(hover.v, 6)}</div>
         </div>
@@ -581,44 +463,19 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-5 py-6">
         <HeaderBar />
         <HeroBlock />
-
-        {/* Prices */}
-        <div className="mt-8">
-          <DualPriceStrip />
-        </div>
-
-        {/* Chart */}
-        <div className="mt-8">
-          <TabbedChart />
-        </div>
-
-        {/* Links */}
+        <div className="mt-8"><DualPriceStrip /></div>
+        <div className="mt-8"><TabbedChart /></div>
         <section className="mt-10 grid md:grid-cols-2 gap-6">
           <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
             <div className="text-xs text-white/60">Quick Links</div>
             <ul className="mt-2 text-sm space-y-2">
-              <li>
-                <a className="text-[#66a3ff] hover:underline" target="_blank" href={`https://cardanoscan.io/token/${CNT_ASSET_ID}`}>
-                  BOS CNT on Cardanoscan
-                </a>
-              </li>
-              <li>
-                <a className="text-[#66a3ff] hover:underline" target="_blank" href="https://www.gate.io/trade/BOS_USDT">
-                  Gate.io BOS/USDT (CNT)
-                </a>
-              </li>
-              <li>
-                <a className="text-[#66a3ff] hover:underline" target="_blank" href="/token">
-                  Token dashboard
-                </a>
-              </li>
+              <li><a className="text-[#66a3ff] hover:underline" target="_blank" href={`https://cardanoscan.io/token/${CNT_ASSET_ID}`}>BOS CNT on Cardanoscan</a></li>
+              <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="https://www.gate.io/trade/BOS_USDT">Gate.io BOS/USDT (CNT)</a></li>
+              <li><a className="text-[#66a3ff] hover:underline" target="_blank" href="/token">Token dashboard</a></li>
             </ul>
-            <p className="mt-3 text-xs text-white/60">
-              Purpose: track the BOS ecosystem on Cardano (CNT)—prices, trading, and, once live, on-chain metrics (holders, txs).
-            </p>
+            <p className="mt-3 text-xs text-white/60">Purpose: track the BOS ecosystem on Cardano (CNT)—prices, trading, and, once live, on-chain metrics (holders, txs).</p>
           </div>
         </section>
-
         <footer className="mt-12 text-xs text-white/60">Unofficial — by Arubato. Not affiliated with BitcoinOS. © 2025</footer>
       </div>
     </main>
